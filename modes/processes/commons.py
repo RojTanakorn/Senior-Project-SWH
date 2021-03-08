@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
-from db.models import LogData, HardwareData, PalletData
+from db.models import LogData, HardwareData, PalletData, LayoutData
 from channels.db import database_sync_to_async
 from django.utils import timezone
 
@@ -68,6 +68,13 @@ async def Update_pallet_info(pallet_id, update_info_dict):
     )()
 
 
+''' Function for updating location information in LAYOUT_DATA '''
+async def Update_location_info(location, update_info_dict):
+    await database_sync_to_async(
+        lambda: LayoutData.objects.filter(location=location).update(**update_info_dict)
+    )()
+
+
 ''' Function for getting pallet information in PALLET_DATA '''
 async def Get_pallet_info(pallet_id, wanted_fields):
     return await database_sync_to_async(
@@ -75,7 +82,7 @@ async def Get_pallet_info(pallet_id, wanted_fields):
     )()
 
 
-''' Function for generating payloads in every modes and stages '''
+''' Class for generating payloads in every modes and stages '''
 class Payloads():
 
     # Mode 2 Stage 0
@@ -96,6 +103,43 @@ class Payloads():
             "status": kwargs['status'],
             "error_type": kwargs['error_type'],
             "data": kwargs['data']
+        }
+
+        return hw, sw
+
+    # Mode 2 Stage 1
+    def m2s1( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 2,
+            "stage": 1,
+            "status": kwargs['status']
+        }
+
+        sw = {
+            "mode": 2,
+            "stage": 1,
+            "isNotify": True,
+            "status": kwargs['status'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
+
+    # Mode 2 Stage 2
+    def m2s2( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 2,
+            "stage": 2,
+            "status": True
+        }
+
+        sw = {
+            "mode": 2,
+            "stage": 2,
+            "isNotify": True,
+            "status": kwargs['status']
         }
 
         return hw, sw
