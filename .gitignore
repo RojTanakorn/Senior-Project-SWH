@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 activate.ps1
+text_files/
