@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'channels',
     'corsheaders',
     'modes',
+    'managements',
     'db',
     'django.contrib.admin',
     'django.contrib.auth',
