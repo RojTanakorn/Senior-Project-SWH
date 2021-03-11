@@ -212,7 +212,7 @@ def Notify_order_coming():
             order_number=F('orderlistid__ordernumber'),
             item_name=F('palletid__itemnumber__itemname'),
             location=F('palletid__location')
-        ).values('order_number', 'pickupid', 'palletid', 'item_name', 'location', 'pickupstatus')
+        ).order_by('pickupid').values('order_number', 'pickupid', 'palletid', 'item_name', 'location', 'pickupstatus')
 
         # Get total pickip amount for today
         total_pickup = pickup_info.count()
