@@ -18,13 +18,13 @@ def Order_receiving_management(request):
     order_list = payload_json['orders']
 
     # Store orders into database
-    # Store_order_data(order_list)
+    Store_order_data(order_list)
 
     # Arrange pallet about how many rounds for pickup
-    # Arrange_pallet()
+    Arrange_pallet()
 
     # Define hardware to respond pickup tasks
-    # Define_hardware()
+    Define_hardware()
 
     # Notify to hardware about order coming for picking up
     Notify_order_coming()
