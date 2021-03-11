@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
-from db.models import LogData, HardwareData, PalletData, LayoutData
+from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData
 from channels.db import database_sync_to_async
 from django.utils import timezone
 
@@ -68,6 +68,13 @@ async def Update_pallet_info(pallet_id, update_info_dict):
     )()
 
 
+''' Function for updating multiple pallets' information in PALLET_DATA '''
+async def Update_multiple_pallets_info(pallet_id_list, update_info_dict):
+    await database_sync_to_async(
+        lambda: PalletData.objects.filter(palletid__in=pallet_id_list).update(**update_info_dict)
+    )()
+
+
 ''' Function for updating location information in LAYOUT_DATA '''
 async def Update_location_info(location, update_info_dict):
     await database_sync_to_async(
@@ -79,6 +86,13 @@ async def Update_location_info(location, update_info_dict):
 async def Get_pallet_info(pallet_id, wanted_fields):
     return await database_sync_to_async(
         lambda: PalletData.objects.filter(palletid=pallet_id).values(*wanted_fields).last()
+    )()
+
+
+''' Function for getting pallet information in PALLET_DATA '''
+async def Get_multiple_items_info(item_number_list, wanted_fields):
+    return await database_sync_to_async(
+        lambda: list(ItemData.objects.filter(itemnumber__in=item_number_list).values(*wanted_fields))
     )()
 
 
@@ -143,3 +157,16 @@ class Payloads():
         }
 
         return hw, sw
+
+    # Mode 3 Stage 0
+    def m3s0( **kwargs ):
+        sw = {
+            'mode': 3,
+            'stage': 0,
+            'isNotify': False,
+            'total_pickup': kwargs['total_pickup'],
+            'done_pickup': kwargs['done_pickup'],
+            'data': kwargs['data']
+        }
+
+        return sw
