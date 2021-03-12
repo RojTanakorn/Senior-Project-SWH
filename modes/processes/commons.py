@@ -26,8 +26,7 @@ async def Store_log(create_log_dict):
 
     # store log row into LOG_DATA
     await database_sync_to_async(
-        lambda : 
-            LogData.objects.create(**create_log_dict)
+        lambda : LogData.objects.create(**create_log_dict)
     )()
 
 
@@ -170,3 +169,46 @@ class Payloads():
         }
 
         return sw
+
+    # Mode 3 Stage 1
+    def m3s1( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 1,
+            "status": kwargs['status'],
+            "new_mode": 3,
+            "new_stage": 2
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 1,
+            "isNotify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type']
+        }
+
+        return hw, sw
+
+    # Mode 3 Stage 2
+    def m3s2( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 2,
+            "status": kwargs['status'],
+            "new_mode": 3,
+            "new_stage": 1
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 2,
+            "isNotify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type'],
+            "data": kwargs['data']
+        }
+
+        return hw, sw
