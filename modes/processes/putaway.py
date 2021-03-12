@@ -310,8 +310,7 @@ def Calculate_expected_weight(weight_per_piece, amount_per_pallet):
     expected_weight = commons.EMPTY_PALLET_WEIGHT + (weight_per_piece * amount_per_pallet)
 
     # Min and max of expected weight
-    min_weight = (1 - commons.PALLET_WEIGHT_ERROR) * expected_weight
-    max_weight = (1 + commons.PALLET_WEIGHT_ERROR) * expected_weight
+    min_weight, max_weight = commons.Range_expected_weight(expected_weight)
 
     return min_weight, max_weight
 
