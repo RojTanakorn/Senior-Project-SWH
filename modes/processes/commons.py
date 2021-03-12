@@ -11,6 +11,14 @@ EMPTY_PALLET_WEIGHT = 5.00
 PALLET_WEIGHT_ERROR = 0.1
 
 
+''' Function for calculating range of expected weight '''
+def Range_expected_weight(expected_weight):
+    min_weight = (1 - PALLET_WEIGHT_ERROR) * expected_weight
+    max_weight = (1 + PALLET_WEIGHT_ERROR) * expected_weight
+
+    return min_weight, max_weight
+
+
 ''' Function for convert datetime from UTC to GMT+7 (local) '''
 def Convert_to_local_datetime(UTCdatetime):
     return UTCdatetime + timedelta(hours=7)
