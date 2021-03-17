@@ -1,9 +1,10 @@
 import json
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
-from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData
+from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, PickupData
 from channels.db import database_sync_to_async
 from django.utils import timezone
+from django.db.models import F
 
 
 ''' Constants '''
@@ -94,6 +95,65 @@ async def Get_multiple_items_info(item_number_list, wanted_fields):
     return await database_sync_to_async(
         lambda: list(ItemData.objects.filter(itemnumber__in=item_number_list).values(*wanted_fields))
     )()
+
+
+''' Function for notifying order to webapp for picking up that day '''
+async def Notify_pickup(hardware_id):
+    payload_info = await Get_remain_pickup_list(hardware_id)
+
+    # Generate payload for sending to webapp
+    webapp_payload = Payloads.m3s0(
+        total_pickup=payload_info['total_pickup'],
+        done_pickup=payload_info['done_pickup'],
+        data=payload_info['data']
+    )
+
+    # Send payload to webapp
+    await Notify_clients(
+        hardware_id=hardware_id,
+        webapp_payload=webapp_payload
+    )
+
+
+''' Function for getting remaining pickup list for picking up of specific hardware '''
+async def Get_remain_pickup_list(hardware_id):
+    # Initialize data for sending to considered hardware ID with webapp payload
+    data = []
+
+    # Get pickup information of wanted records for sending to webapp, which have to be picked up today
+    pickup_info = await database_sync_to_async(
+        lambda: list(
+                    PickupData.objects.filter(
+                        orderlistid__ordernumber__duedate=Get_now_local_datetime().date(),
+                        hardwareid=hardware_id
+                    ).annotate(
+                        order_number=F('orderlistid__ordernumber'),
+                        item_name=F('palletid__itemnumber__itemname'),
+                        location=F('palletid__location')
+                    ).order_by('pickupid').values('order_number', 'pickupid', 'palletid', 'item_name', 'location', 'pickupstatus')
+                )
+    )()
+
+    # Get total pickip amount for today
+    total_pickup = len(pickup_info)
+
+    # Update data header
+    for pickup in pickup_info:
+        if pickup['pickupstatus'] == 'WAITPICK':
+            data.append({
+                'order_number': pickup['order_number'],
+                'pickup_id': pickup['pickupid'],
+                'pickup_type': 'full',
+                'pallet_id': pickup['palletid'],
+                'item_name': pickup['item_name'],
+                'location': pickup['location']
+            })
+
+    return {
+        'total_pickup': total_pickup,
+        'done_pickup': total_pickup - len(data),
+        'data': data
+    }
 
 
 ''' Class for generating payloads in every modes and stages '''
