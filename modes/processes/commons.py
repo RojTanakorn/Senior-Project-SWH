@@ -254,7 +254,8 @@ class Payloads():
             "stage": 1,
             "isNotify": True,
             "status": kwargs['status'],
-            "error_type": kwargs['error_type']
+            "error_type": kwargs['error_type'],
+            "current_location": kwargs['current_location']
         }
 
         return hw, sw
@@ -276,6 +277,8 @@ class Payloads():
             "isNotify": True,
             "status": kwargs['status'],
             "error_type": kwargs['error_type'],
+            "total_pickup": kwargs['total_pickup'],
+            "done_pickup": kwargs['done_pickup'],
             "data": kwargs['data']
         }
 
