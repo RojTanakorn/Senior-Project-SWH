@@ -1,5 +1,4 @@
 from django.http import HttpResponse
-from django.db.models import Q, F
 from db.models import OrderData, OrderListData, PickupData, ItemData, PalletData, HardwareData
 from modes.processes import commons
 from asgiref.sync import async_to_sync
@@ -27,7 +26,7 @@ def Order_receiving_management(request):
     Define_hardware()
 
     # Notify to hardware about order coming for picking up
-    Notify_order_coming()
+    Notify_all_pickup_coming()
 
     return HttpResponse('Done')
 
@@ -76,14 +75,20 @@ def Store_order_data(order_list):
     OrderListData.objects.bulk_create(order_list_records)
 
 
-''' Function for arranging pallet and defining pallet ID to each pickup record '''
+''' Function for arranging pallet and defining pallet ID to each pickup record (only have to be picked up that day) '''
 def Arrange_pallet():
 
-    # Get all order number which are not arranged
-    order_numbers = list(OrderData.objects.filter(orderstatus='NO ARRANGE').values_list('ordernumber', flat=True))
+    # =========== Separate order list to pickup record part ===========
+    # Get all order number which are not arranged and have to be picked up today
+    today_order_numbers = list(
+        OrderData.objects.filter(
+            orderstatus='NO ARRANGE',
+            duedate=commons.Get_now_local_datetime().date()
+        ).values_list('ordernumber', flat=True)
+    )
 
     # Get all order list object which are not defined pallet
-    order_list_records = list(OrderListData.objects.filter(ordernumber__in=order_numbers))
+    order_list_records = list(OrderListData.objects.filter(ordernumber__in=today_order_numbers))
 
     # Initialize pickup records for storing into PICKUP_DATA, pickup records items is about item number according to pickup records (same index)
     pickup_records = []
@@ -137,12 +142,16 @@ def Arrange_pallet():
         # Update the number of round of considered item number
         wanted_pallets_amount[item_number] = wanted_pallets_amount[item_number] + pickup_round
 
+    # =========== Define pallet ID to each pickup record part ===========
     # Access to each item number and amount of pallets
     for item_number in wanted_pallets_amount:
         
         # Get pallet ID list that match the item number and available amount is not 0, with LIMIT by the number of round (pallet)
         pallet_id_list = list(
-            PalletData.objects.filter(itemnumber=item_number).exclude(amountavailable=0).values_list('palletid', flat=True).order_by('putawaytimestamp')[:wanted_pallets_amount[item_number]]
+            PalletData.objects.filter(
+                itemnumber=item_number,
+                palletstatus='GENERAL'
+            ).values_list('palletid', flat=True).order_by('putawaytimestamp')[:wanted_pallets_amount[item_number]]
         )
 
         # Initialize pallet ID index that is unused
@@ -154,24 +163,24 @@ def Arrange_pallet():
                 pickup_records[index].palletid_id = pallet_id_list[pallet_id_used]
                 pallet_id_used = pallet_id_used + 1
 
-        # Update available amount of each used pallet ID
+        # Update available amount and pallet status of each used pallet ID
         async_to_sync(commons.Update_multiple_pallets_info)(
             pallet_id_list=pallet_id_list,
-            update_info_dict={'amountavailable': 0}
+            update_info_dict={'palletstatus': 'WAITPICK', 'amountavailable': 0}
         )
 
     # Create multiple records in PICKUP_DATA
     PickupData.objects.bulk_create(pickup_records)
+
+    # Update order number status
+    OrderData.objects.filter(ordernumber__in=today_order_numbers).update(orderstatus='WAITPICK')
 
 
 ''' Function for defining hardware ID to pickup records which have to be picked up today '''
 def Define_hardware():
 
     # Get all pickup record objects which wait for defining hardware and have due date today
-    pickup_records = list(PickupData.objects.filter(
-        pickupstatus='WAITHW',
-        orderlistid__ordernumber__duedate=commons.Get_now_local_datetime().date()
-    ))
+    pickup_records = list(PickupData.objects.filter(pickupstatus='WAITHW'))
 
     # Get all active hardware ID
     active_hardware_ids = list(HardwareData.objects.filter(isactive=True).values_list('hardwareid', flat=True))
@@ -193,7 +202,7 @@ def Define_hardware():
 
 
 ''' Function for notifying webapp about coming pickup orders for today '''
-def Notify_order_coming():
+def Notify_all_pickup_coming():
 
     # Get all hardware IDs which have to pick up items today
     hardware_ids = list(set(PickupData.objects.filter(pickupstatus='WAITPICK').values_list('hardwareid', flat=True)))
@@ -201,43 +210,4 @@ def Notify_order_coming():
     # Access each hardware ID
     for hardware_id in hardware_ids:
 
-        # Initialize data for sending to considered hardware ID with webapp payload
-        data = []
-
-        # Get pickup information of wanted records for sending to webapp, which have to be picked up today
-        pickup_info = PickupData.objects.filter(
-            orderlistid__ordernumber__duedate=commons.Get_now_local_datetime().date(),
-            hardwareid=hardware_id
-        ).annotate(
-            order_number=F('orderlistid__ordernumber'),
-            item_name=F('palletid__itemnumber__itemname'),
-            location=F('palletid__location')
-        ).order_by('pickupid').values('order_number', 'pickupid', 'palletid', 'item_name', 'location', 'pickupstatus')
-
-        # Get total pickip amount for today
-        total_pickup = pickup_info.count()
-
-        # Update data header
-        for pickup in list(pickup_info):
-            if pickup['pickupstatus'] == 'WAITPICK':
-                data.append({
-                    'order_number': pickup['order_number'],
-                    'pickup_id': pickup['pickupid'],
-                    'pickup_type': 'full',
-                    'pallet_id': pickup['palletid'],
-                    'item_name': pickup['item_name'],
-                    'location': pickup['location']
-                })
-
-        # Generate payload for sending to webapp
-        webapp_payload = commons.Payloads.m3s0(
-            total_pickup=total_pickup,
-            done_pickup=total_pickup - len(data),
-            data=data
-        )
-
-        # Send payload to webapp
-        async_to_sync(commons.Notify_clients)(
-            hardware_id=hardware_id,
-            webapp_payload=webapp_payload
-        )
+        async_to_sync(commons.Notify_pickup)(hardware_id)
