@@ -35,6 +35,7 @@ async def Pickup_stage_1(hardware_id, employee_id, payload_json):
     scanned_pallet_id = payload_json['pallet_id']
     scanned_location = payload_json['location']
 
+    # Verify scanned pallet and location
     verify_pickup_pallet_status, error_type = await Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
 
     # Store log into LOG_DATA
@@ -66,7 +67,6 @@ async def Pickup_stage_1(hardware_id, employee_id, payload_json):
     )
 
 
-
 ''' Function stage 2 '''
 async def Pickup_stage_2(hardware_id, employee_id, payload_json):
     
@@ -74,59 +74,47 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
     scanned_pallet_id = payload_json['pallet_id']
     scanned_pallet_weight = payload_json['pallet_weight']
 
+    # Verify amount in pallet
     verify_pickup_amount_status, error_type, order_info = await Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardware_id)
 
+    # Initialize variables for sending to webapp
     total_pickup = None
     done_pickup = None
     data = None
 
+    # If amount is correct
     if verify_pickup_amount_status:
-        # update
-        # 1. pallet status -> PICKED
-        # 2. check this order number is picked up completely? -> complete - PICKED, not - PICKING
-        # 3. remain pickup quantity
-        # 4. pickup status -> PICKED
 
-        await database_sync_to_async(
-            lambda: PalletData.objects.filter(palletid=scanned_pallet_id).update(palletstatus='PICKED')
-        )()
+        # Update pallet status as PICKED
+        await commons.Update_pallet_info(
+            pallet_id=scanned_pallet_id,
+            update_info_dict={'palletstatus': 'PICKED'}
+        )
 
+        # Update pickup status as PICKED
+        await commons.Update_pickup_info(
+            pickup_id=order_info['pickup_id'],
+            update_info_dict={'pickupstatus': 'PICKED'}
+        )
+
+        # Update remain pickup quantity of that list
         await database_sync_to_async(
             lambda: OrderListData.objects.filter(orderlistid=order_info['order_list_id']).update(
                 remainpickupquantity=F('remainpickupquantity') - order_info['pick_quantity']
             )
         )()
 
-        await database_sync_to_async(
-            lambda: PickupData.objects.filter(pickupid=order_info['pickup_id']).update(pickupstatus='PICKED')
-        )()
+        # Check and update order status to:
+        #   - PICKING (if order number isn't picked up completely)
+        #   - PICKED (if order number is picked up completely)
+        await Check_and_update_order_status(order_info['order_number'])
 
-        remain_pickup_quantity_sum = await database_sync_to_async(
-            lambda: OrderListData.objects.filter(
-                ordernumber=order_info['order_number']
-            ).aggregate(Sum('remainpickupquantity'))['remainpickupquantity__sum']
-        )()
-
-        if bool(remain_pickup_quantity_sum):
-            order_status = 'PICKING'
-        else:
-            order_status = 'PICKED'
-            
-        await database_sync_to_async(
-            lambda: OrderData.objects.filter(ordernumber=order_info['order_number']).update(orderstatus=order_status)
-        )()
-
-        # send new data for picking
+        # Get data about remaining pickup list
         remain_pickup_info = await commons.Get_remain_pickup_list(hardware_id)
 
         total_pickup = remain_pickup_info['total_pickup']
         done_pickup = remain_pickup_info['done_pickup']
         data = remain_pickup_info['data']
-
-    # else:
-
-    #     # data is None
-    #     data = None
 
     # Store log into LOG_DATA
     await commons.Store_log(
@@ -163,6 +151,7 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
 ''' **************** STAGE SUB FUNCTIONS PART **************** '''
 ''' ********************************************************** '''
 
+''' Function for verifying pickup pallet '''
 async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id):
 
     # Initialize status and error type
@@ -176,8 +165,6 @@ async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
             pickupstatus='WAITPICK'
         ).values('pickupid', 'palletid', 'hardwareid'))
     )()
-
-    print(results)
 
     if len(results) == 0:
 
@@ -204,18 +191,21 @@ async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
                 verify_pickup_pallet_status = True
 
                 # Update pickup record status
-                await database_sync_to_async(
-                    lambda: PickupData.objects.filter(pickupid=pickup_record['pickupid']).update(pickupstatus='PICKING')
-                )()
+                await commons.Update_pickup_info(
+                    pickup_id=pickup_record['pickupid'],
+                    update_info_dict={'pickupstatus': 'PICKING'}
+                )
 
                 # Update pallet status
-                await database_sync_to_async(
-                    lambda: PalletData.objects.filter(palletid=scanned_pallet_id).update(palletstatus='PICKING')
-                )()
+                await commons.Update_pallet_info(
+                    pallet_id=scanned_pallet_id,
+                    update_info_dict={'palletstatus': 'PICKING'}
+                )
 
     return verify_pickup_pallet_status, error_type
 
 
+''' Function for verifying pickup amount '''
 async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardware_id):
 
     # Initialize status and error type
@@ -223,7 +213,7 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
     error_type = None
     order_info = None
 
-
+    # Get information about scanned pallet ID which is being picked up
     results = await database_sync_to_async(
         lambda: list(PickupData.objects.filter(palletid=scanned_pallet_id, pickupstatus='PICKING').values(
             'pickupid', 'quantity', 'hardwareid', 'orderlistid', 'orderlistid__ordernumber'
@@ -250,11 +240,14 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
                 lambda: PalletData.objects.filter(palletid=scanned_pallet_id).values_list('palletweight', flat=True).last()
             )()
 
+            # Get main-max of expected weight
             min_weight, max_weight = commons.Range_expected_weight(expected_pallet_weight)
 
+            # If scanned pallet weight is in expected range
             if min_weight <= scanned_pallet_weight <= max_weight:
                 verify_pickup_amount_status = True
 
+                # Generate data to use outside function
                 order_info = {
                     'order_list_id': pickup_record['orderlistid'],
                     'order_number': pickup_record['orderlistid__ordernumber'],
@@ -266,3 +259,20 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
 
     return verify_pickup_amount_status, error_type, order_info
 
+
+''' Function for Checking and updating order status '''
+async def Check_and_update_order_status(order_number):
+    remain_pickup_quantity_sum = await database_sync_to_async(
+        lambda: OrderListData.objects.filter(
+            ordernumber=order_number
+        ).aggregate(Sum('remainpickupquantity'))['remainpickupquantity__sum']
+    )()
+
+    if bool(remain_pickup_quantity_sum):
+        order_status = 'PICKING'
+    else:
+        order_status = 'PICKED'
+            
+    await database_sync_to_async(
+        lambda: OrderData.objects.filter(ordernumber=order_number).update(orderstatus=order_status)
+    )()
