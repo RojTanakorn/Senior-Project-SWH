@@ -104,6 +104,13 @@ async def Get_multiple_items_info(item_number_list, wanted_fields):
     )()
 
 
+''' Function for updating pickup information in PICKUP_DATA '''
+async def Update_pickup_info(pickup_id, update_info_dict):
+    await database_sync_to_async(
+        lambda: PickupData.objects.filter(pickupid=pickup_id).update(**update_info_dict)
+    )()
+
+
 ''' Function for notifying order to webapp for picking up that day '''
 async def Notify_pickup(hardware_id):
     payload_info = await Get_remain_pickup_list(hardware_id)
@@ -267,8 +274,8 @@ class Payloads():
             "mode": 3,
             "stage": 2,
             "status": kwargs['status'],
-            "new_mode": 3,
-            "new_stage": 1
+            "new_mode": 3 if kwargs['data'] else 0 ,
+            "new_stage": 1 if kwargs['data'] else 0
         }
 
         sw = {
