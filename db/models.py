@@ -103,6 +103,7 @@ class OrderData(models.Model):
     salesterritory = models.CharField(db_column='SalesTerritory', max_length=6, blank=True, null=True)  # Field name made lowercase.
     remarks = models.CharField(db_column='Remarks', max_length=1000, blank=True, null=True)  # Field name made lowercase.
     orderstatus = models.CharField(db_column='OrderStatus', max_length=10, blank=True, null=True)  # Field name made lowercase.
+    duedate = models.DateField(db_column='DueDate', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
         managed = False
