@@ -1,7 +1,6 @@
 from channels.db import database_sync_to_async
 from . import commons
 from db.models import LayoutData
-from asgiref.sync import sync_to_async
 
 
 ''' **************************************************** '''
