@@ -104,6 +104,13 @@ async def Get_location_info(location, wanted_fields):
     )()
 
 
+''' Function for getting item information in ITEM_DATA '''
+async def Get_item_info(item_number, wanted_fields):
+    return await database_sync_to_async(
+        lambda: ItemData.objects.filter(itemnumber=item_number).values(*wanted_fields).last()
+    )()
+
+
 ''' Function for getting pallet information in PALLET_DATA '''
 async def Get_multiple_items_info(item_number_list, wanted_fields):
     return await database_sync_to_async(
