@@ -1,13 +1,3 @@
-from channels.db import database_sync_to_async
-from . import commons
-from db.models import PalletData, ItemData, LayoutData
-from asgiref.sync import sync_to_async
-
-
-''' **************************************************** '''
-''' **************** MAIN FUNCTION PART **************** '''
-''' **************************************************** '''
-
 ''' Function for processing putaway mode '''
 async def Putaway_mode(its_serial_number, payload_json, current_mode, current_stage):
     
