@@ -2,8 +2,10 @@ import json
 from .putaway import Putaway_mode
 from .pickup import Pickup_mode
 from .location_transfer import Location_transfer_mode
+from . import commons
 
 
+''' Function for operating normal payload of mode process '''
 async def Operate(its_serial_number, payload_string):
     
     # Convert string to json (dict)
@@ -39,3 +41,24 @@ async def Operate(its_serial_number, payload_string):
             current_mode,
             current_stage
         )
+
+
+''' Function for Managing mode selection from webapp '''
+async def Mode_selection_management(its_serial_number, payload_string):
+
+    # Convert string to json (dict)
+    payload_json = json.loads(payload_string)
+
+    # Generate payload for sending to clients (hardware and webapp)
+    hardware_payload, webapp_payload = commons.Payloads.mode_selection(
+        payload_json['mode'],
+        payload_json['stage']
+    )
+
+    # Send payload to clients
+    await commons.Notify_clients(
+        hardware_id=its_serial_number[2:],
+        hardware_payload=hardware_payload,
+        webapp_payload=webapp_payload
+    )
+    

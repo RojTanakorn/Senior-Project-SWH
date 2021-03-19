@@ -1,6 +1,6 @@
   
 from channels.generic.websocket import AsyncWebsocketConsumer
-from .processes.operate import Operate
+from .processes.operate import Operate, Mode_selection_management
 
 
 class ModeConsumer(AsyncWebsocketConsumer):
@@ -30,8 +30,16 @@ class ModeConsumer(AsyncWebsocketConsumer):
 
     ''' Called when receive data from WebSocket '''
     async def receive(self, text_data):
-        # Process payload in Operate function
-        await Operate(self.its_serial_number, text_data)
+        
+        its_serial_number = self.its_serial_number
+
+        # Process hardware payload in Operate function
+        if self.its_serial_number[:2] == 'hw':
+            await Operate(self.its_serial_number, text_data)
+
+        # Process mode selection of webapp in Mode_selection_management function
+        elif self.its_serial_number[:2] == 'sw':
+            await Mode_selection_management(self.its_serial_number, text_data)
 
 
     ''' Called when the mode want to send payload '''
