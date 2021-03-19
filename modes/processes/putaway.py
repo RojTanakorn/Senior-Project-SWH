@@ -1,6 +1,6 @@
 from channels.db import database_sync_to_async
 from . import commons
-from db.models import PalletData, ItemData, LayoutData
+from db.models import LayoutData
 from asgiref.sync import sync_to_async
 
 
@@ -254,53 +254,50 @@ async def Verify_pallet(scanned_pallet_id):
     item_number = None
 
     # Query item number and pallet status of considered pallet ID
-    results = await database_sync_to_async(
-        lambda: list(PalletData.objects.filter(palletid=scanned_pallet_id).values('itemnumber', 'palletstatus'))
-    )()
+    pallet_info = await commons.Get_pallet_info(
+        pallet_id=scanned_pallet_id,
+        wanted_fields=('itemnumber', 'palletstatus')
+    )
 
     # If pallet ID doesn't exist
-    if len(results) == 0:
+    if pallet_info is None:
         status = 'NOT EXIST'
 
     else:
 
-        # Get pallet status and item number
-        pallet_status = results[0]['palletstatus']
-        item_number = results[0]['itemnumber']
-
         # If item number is not registered to this pallet ID yet
-        if item_number is None:
+        if pallet_info['itemnumber'] is None:
             status = 'NO ITEM'
 
         else:
 
             # If pallet status is 'REGISTER' --> Normal process for putaway
-            if pallet_status == 'REGISTER':
+            if pallet_info['palletstatus'] == 'REGISTER':
                 status = 'VERIFY'
 
             # If pallet status is 'PENDPUT' --> This pallet has already been verified
-            elif pallet_status == 'PENDPUT':
+            elif pallet_info['palletstatus'] == 'PENDPUT':
                 status = 'ALREADY'
 
-
-    return status, item_number
+    return status, pallet_info['itemnumber']
 
 
 ''' Function for verifying amount of item using weight '''
 async def Verify_amount(item_number, scanned_pallet_weight):
 
     # Get item name, weight per piece, amount per pallet of specific item number
-    item_name, weight_per_piece, amount_per_pallet = await database_sync_to_async(
-        lambda: ItemData.objects.filter(itemnumber=item_number).values_list('itemname', 'weightperpiece', 'amountperpallet').last()
-    )()
+    item_info = await commons.Get_item_info(
+        item_number=item_number,
+        wanted_fields=('itemname', 'weightperpiece', 'amountperpallet')
+    )
 
     # Calculate range of expected weight
-    min_weight, max_weight = Calculate_expected_weight(weight_per_piece, amount_per_pallet)
+    min_weight, max_weight = Calculate_expected_weight(item_info['weightperpiece'], item_info['amountperpallet'])
 
     # Check that pallet weight is in range of expected weight or not
     verify_amount_status = min_weight <= scanned_pallet_weight <= max_weight
  
-    return verify_amount_status, item_name, amount_per_pallet
+    return verify_amount_status, item_info['itemname'], item_info['amountperpallet']
 
 
 ''' Function for calculate range of expected weight '''
@@ -327,9 +324,10 @@ async def Define_location():
 
 ''' Function for booking location '''
 async def Book_location(location):
-    await database_sync_to_async(
-        lambda: LayoutData.objects.filter(location=location).update(locationstatus='BOOK')
-    )()
+    await commons.Update_location_info(
+        location=location,
+        update_info_dict={'locationstatus': 'BOOK'}
+    )
 
 
 ''' Function for verify location from hardware '''
@@ -337,9 +335,10 @@ async def Verify_location(scanned_pallet_id, scanned_location):
 
     # Query palletstatus, location of scanned_pallet_id from PALLET_DATA
     # Get dict of query result (pallet_id is unique, we can get the first one)
-    verify_location_query = await database_sync_to_async(
-        lambda: list(PalletData.objects.filter(palletid=scanned_pallet_id).values('palletstatus', 'location'))[0]
-    )()
+    verify_location_query = await commons.Get_pallet_info(
+        pallet_id=scanned_pallet_id,
+        wanted_fields=('palletstatus', 'location')
+    )
 
     # Is palletstatus is PENDPUT (Pending for putaway)?
     # If it isn't, return false & error field
