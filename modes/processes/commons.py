@@ -97,10 +97,31 @@ async def Get_pallet_info(pallet_id, wanted_fields):
     )()
 
 
+''' Function for getting location information in LAYOUT_DATA '''
+async def Get_location_info(location, wanted_fields):
+    return await database_sync_to_async(
+        lambda: LayoutData.objects.filter(location=location).values(*wanted_fields).last()
+    )()
+
+
+''' Function for getting item information in ITEM_DATA '''
+async def Get_item_info(item_number, wanted_fields):
+    return await database_sync_to_async(
+        lambda: ItemData.objects.filter(itemnumber=item_number).values(*wanted_fields).last()
+    )()
+
+
 ''' Function for getting pallet information in PALLET_DATA '''
 async def Get_multiple_items_info(item_number_list, wanted_fields):
     return await database_sync_to_async(
         lambda: list(ItemData.objects.filter(itemnumber__in=item_number_list).values(*wanted_fields))
+    )()
+
+
+''' Function for getting pickup information in PICKUP_DATA with various filters '''
+async def Get_pickup_info_various_filters(filters_dict, wanted_fields):
+    return await database_sync_to_async(
+        lambda: list(PickupData.objects.filter(**filters_dict).values(*wanted_fields))
     )()
 
 
@@ -287,6 +308,65 @@ class Payloads():
             "total_pickup": kwargs['total_pickup'],
             "done_pickup": kwargs['done_pickup'],
             "data": kwargs['data']
+        }
+
+        return hw, sw
+
+    # Mode 4 Stage 0
+    def m4s0( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 4,
+            "stage": 0,
+            "status": kwargs['status'],
+            "new_mode": 4,
+            "new_stage": 1
+        }
+
+        sw = {
+            "mode": 4,
+            "stage": 0,
+            "isNotify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type']
+        }
+
+        return hw, sw
+
+    # Mode 4 Stage 1
+    def m4s1( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 4,
+            "stage": 1,
+            "status": kwargs['status'],
+            "new_mode": 4,
+            "new_stage": 0
+        }
+
+        sw = {
+            "mode": 4,
+            "stage": 1,
+            "isNotify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type']
+        }
+
+        return hw, sw
+
+    # Mode selection
+    def mode_selection(current_mode, current_stage):
+        hw = {
+            "information_type": 'mode_changed',
+            "new_mode": current_mode,
+            "new_stage": current_stage
+        }
+
+        sw = {
+            "mode": 0,
+            "stage": 0,
+            "isNotify": False,
+            "status": True
         }
 
         return hw, sw
