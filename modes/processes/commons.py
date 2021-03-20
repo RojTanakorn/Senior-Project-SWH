@@ -118,6 +118,13 @@ async def Get_multiple_items_info(item_number_list, wanted_fields):
     )()
 
 
+''' Function for getting pickup information in PICKUP_DATA with various filters '''
+async def Get_pickup_info_various_filters(filters_dict, wanted_fields):
+    return await database_sync_to_async(
+        lambda: list(PickupData.objects.filter(**filters_dict).values(*wanted_fields))
+    )()
+
+
 ''' Function for updating pickup information in PICKUP_DATA '''
 async def Update_pickup_info(pickup_id, update_info_dict):
     await database_sync_to_async(
