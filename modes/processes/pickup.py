@@ -9,7 +9,7 @@ from db.models import OrderData, OrderListData
 ''' **************************************************** '''
 
 ''' Function for processing pickup mode '''
-async def Pickup_mode(its_serial_number, payload_json, current_mode, current_stage):
+async def Pickup_mode(its_serial_number, payload_json, current_stage):
     
     # Get only hardware ID's sender and employee ID
     hardware_id = its_serial_number[2:]
@@ -17,11 +17,23 @@ async def Pickup_mode(its_serial_number, payload_json, current_mode, current_sta
 
     # Process data in stage 0
     if current_stage == 1:
-        await Pickup_stage_1(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload = await Pickup_stage_1(hardware_id, employee_id, payload_json)
 
     # Process data in stage 1
     elif current_stage == 2:
-        await Pickup_stage_2(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload = await Pickup_stage_2(hardware_id, employee_id, payload_json)
+
+    # Store log into LOG_DATA
+    await commons.Store_log(
+        create_log_dict=log_dict
+    )
+
+    # Send payload to clients
+    await commons.Notify_clients(
+        hardware_id=hardware_id,
+        hardware_payload=hardware_payload,
+        webapp_payload=webapp_payload
+    )
 
     
 ''' ****************************************************** '''
@@ -38,19 +50,17 @@ async def Pickup_stage_1(hardware_id, employee_id, payload_json):
     # Verify scanned pallet and location
     verify_pickup_pallet_status, error_type = await Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict={
-            'logtype': 'GEN' if verify_pickup_pallet_status else 'ERR',
-            'errorfield': error_type,
-            'mode_id': 3,
-            'stage': 1,
-            'scanpallet': scanned_pallet_id,
-            'scanlocation': scanned_location,
-            'employeeid_id': employee_id,
-            'logtimestamp': commons.Get_now_local_datetime()
-        }
-    )
+    # Generate dict of log
+    log_dict = {
+        'logtype': 'GEN' if verify_pickup_pallet_status else 'ERR',
+        'errorfield': error_type,
+        'mode_id': 3,
+        'stage': 1,
+        'scanpallet': scanned_pallet_id,
+        'scanlocation': scanned_location,
+        'employeeid_id': employee_id,
+        'logtimestamp': commons.Get_now_local_datetime()
+    }
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m3s1(
@@ -59,12 +69,7 @@ async def Pickup_stage_1(hardware_id, employee_id, payload_json):
         current_location=scanned_location
     )
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    return log_dict, hardware_payload, webapp_payload
 
 
 ''' Function stage 2 '''
@@ -95,19 +100,17 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
         done_pickup = remain_pickup_info['done_pickup']
         data = remain_pickup_info['data']
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict={
-            'logtype': 'GEN' if verify_pickup_amount_status else 'ERR',
-            'errorfield': error_type,
-            'mode_id': 3,
-            'stage': 2,
-            'scanpallet': scanned_pallet_id,
-            'scanpalletweight': scanned_pallet_weight,
-            'employeeid_id': employee_id,
-            'logtimestamp': commons.Get_now_local_datetime()
-        }
-    )
+    # Generate dict of log
+    log_dict = {
+        'logtype': 'GEN' if verify_pickup_amount_status else 'ERR',
+        'errorfield': error_type,
+        'mode_id': 3,
+        'stage': 2,
+        'scanpallet': scanned_pallet_id,
+        'scanpalletweight': scanned_pallet_weight,
+        'employeeid_id': employee_id,
+        'logtimestamp': commons.Get_now_local_datetime()
+    }
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m3s2(
@@ -118,12 +121,7 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
         data=data
     )
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    return log_dict, hardware_payload, webapp_payload
 
 
 ''' ********************************************************** '''
