@@ -10,11 +10,23 @@ async def Location_transfer_mode(its_serial_number, payload_json, current_mode, 
 
     # Process data in stage 0
     if current_stage == 0:
-        await Location_transfer_stage_0(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload = await Location_transfer_stage_0(employee_id, payload_json)
 
     # Process data in stage 1
     elif current_stage == 1:
-        await Location_transfer_stage_1(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload = await Location_transfer_stage_1(employee_id, payload_json)
+
+    # Store log into LOG_DATA
+    await commons.Store_log(
+        create_log_dict=log_dict
+    )
+
+    # Send payload to clients
+    await commons.Notify_clients(
+        hardware_id=hardware_id,
+        hardware_payload=hardware_payload,
+        webapp_payload=webapp_payload
+    )
 
 
 ''' ****************************************************** '''
@@ -22,7 +34,7 @@ async def Location_transfer_mode(its_serial_number, payload_json, current_mode, 
 ''' ****************************************************** '''
 
 ''' Function stage 0 '''
-async def Location_transfer_stage_0(hardware_id, employee_id, payload_json):
+async def Location_transfer_stage_0(employee_id, payload_json):
     
     # Get data from hardware payload
     scanned_pallet_id = payload_json['pallet_id']
@@ -37,32 +49,26 @@ async def Location_transfer_stage_0(hardware_id, employee_id, payload_json):
             update_info_dict={'palletstatus': 'MOVING'}
         )
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict={
-            'logtype': 'GEN' if verify_current_location else 'ERR',
-            'errorfield': error_type,
-            'mode_id': 4,
-            'stage': 0,
-            'scanpallet': scanned_pallet_id,
-            'scanlocation': scanned_location,
-            'employeeid_id': employee_id,
-            'logtimestamp': commons.Get_now_local_datetime()
-        }
-    )
+    # Generate dict of log
+    log_dict = {
+        'logtype': 'GEN' if verify_current_location else 'ERR',
+        'errorfield': error_type,
+        'mode_id': 4,
+        'stage': 0,
+        'scanpallet': scanned_pallet_id,
+        'scanlocation': scanned_location,
+        'employeeid_id': employee_id,
+        'logtimestamp': commons.Get_now_local_datetime()
+    }
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m4s0(status=verify_current_location, error_type=error_type)
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    return log_dict, hardware_payload, webapp_payload
+    
 
 ''' Function stage 1 '''
-async def Location_transfer_stage_1(hardware_id, employee_id, payload_json):
+async def Location_transfer_stage_1(employee_id, payload_json):
     
     # Get data from hardware payload
     scanned_pallet_id = payload_json['pallet_id']
@@ -91,29 +97,22 @@ async def Location_transfer_stage_1(hardware_id, employee_id, payload_json):
             update_info_dict={'locationstatus': 'BUSY'}
         )
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict={
-            'logtype': 'GEN' if verify_new_location else 'ERR',
-            'errorfield': error_type,
-            'mode_id': 4,
-            'stage': 1,
-            'scanpallet': scanned_pallet_id,
-            'scanlocation': scanned_location,
-            'employeeid_id': employee_id,
-            'logtimestamp': commons.Get_now_local_datetime()
-        }
-    )
+    # Generate dict of log
+    log_dict = {
+        'logtype': 'GEN' if verify_new_location else 'ERR',
+        'errorfield': error_type,
+        'mode_id': 4,
+        'stage': 1,
+        'scanpallet': scanned_pallet_id,
+        'scanlocation': scanned_location,
+        'employeeid_id': employee_id,
+        'logtimestamp': commons.Get_now_local_datetime()
+    }
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m4s1(status=verify_new_location, error_type=error_type)
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    return log_dict, hardware_payload, webapp_payload
 
 
 ''' ********************************************************** '''

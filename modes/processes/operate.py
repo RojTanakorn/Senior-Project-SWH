@@ -18,7 +18,6 @@ async def Operate(its_serial_number, payload_string):
         await Putaway_mode(
             its_serial_number,
             payload_json,
-            current_mode,
             current_stage
         )
 
@@ -27,7 +26,6 @@ async def Operate(its_serial_number, payload_string):
         await Pickup_mode(
             its_serial_number,
             payload_json,
-            current_mode,
             current_stage
         )
 
@@ -36,6 +34,5 @@ async def Operate(its_serial_number, payload_string):
         await Location_transfer_mode(
             its_serial_number,
             payload_json,
-            current_mode,
             current_stage
         )
