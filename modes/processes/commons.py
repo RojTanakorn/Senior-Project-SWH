@@ -97,24 +97,6 @@ async def Get_multiple_items_info(item_number_list, wanted_fields):
     )()
 
 
-''' Function for notifying order to webapp for picking up that day '''
-async def Notify_pickup(hardware_id):
-    payload_info = await Get_remain_pickup_list(hardware_id)
-
-    # Generate payload for sending to webapp
-    webapp_payload = Payloads.m3s0(
-        total_pickup=payload_info['total_pickup'],
-        done_pickup=payload_info['done_pickup'],
-        data=payload_info['data']
-    )
-
-    # Send payload to webapp
-    await Notify_clients(
-        hardware_id=hardware_id,
-        webapp_payload=webapp_payload
-    )
-
-
 ''' Function for getting remaining pickup list for picking up of specific hardware '''
 async def Get_remain_pickup_list(hardware_id):
     # Initialize data for sending to considered hardware ID with webapp payload
@@ -173,7 +155,7 @@ class Payloads():
         sw = {
             "mode": 2,
             "stage": 0,
-            "isNotify": True,
+            "is_notify": True,
             "status": kwargs['status'],
             "error_type": kwargs['error_type'],
             "data": kwargs['data']
@@ -193,7 +175,7 @@ class Payloads():
         sw = {
             "mode": 2,
             "stage": 1,
-            "isNotify": True,
+            "is_notify": True,
             "status": kwargs['status'],
             "current_location": kwargs['scanned_location']
         }
@@ -212,21 +194,18 @@ class Payloads():
         sw = {
             "mode": 2,
             "stage": 2,
-            "isNotify": True,
+            "is_notify": True,
             "status": kwargs['status']
         }
 
         return hw, sw
 
-    # Mode 3 Stage 0
-    def m3s0( **kwargs ):
+    # Mode 3 Stage 1
+    def m3s1( **kwargs ):
         sw = {
             'mode': 3,
-            'stage': 0,
-            'isNotify': False,
-            'total_pickup': kwargs['total_pickup'],
-            'done_pickup': kwargs['done_pickup'],
-            'data': kwargs['data']
+            'stage': 1,
+            'is_notify': True
         }
 
         return sw
