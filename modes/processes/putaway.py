@@ -15,17 +15,17 @@ async def Putaway_mode(its_serial_number, payload_json, current_stage):
     hardware_id = its_serial_number[2:]
     employee_id = payload_json['employee_id']
 
-    # Process data in stage 0
-    if current_stage == 0:
-        log_dict, hardware_payload, webapp_payload = await Putaway_stage_0(employee_id, payload_json)
-
     # Process data in stage 1
-    elif current_stage == 1:
-        log_dict, hardware_payload, webapp_payload = await Putaway_stage_1(employee_id, payload_json)
+    if current_stage == 1:
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_1(employee_id, payload_json)
 
     # Process data in stage 2
     elif current_stage == 2:
-        log_dict, hardware_payload, webapp_payload = await Putaway_stage_2(employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_2(employee_id, payload_json)
+
+    # Process data in stage 3
+    elif current_stage == 3:
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_3(employee_id, payload_json)
 
     # Store log into LOG_DATA
     await commons.Store_log(
@@ -39,17 +39,26 @@ async def Putaway_mode(its_serial_number, payload_json, current_stage):
         webapp_payload=webapp_payload
     )
 
+    if new_mode is not None:
+        await commons.Update_current_mode_stage(
+            hardware_id=hardware_id,
+            mode=new_mode,
+            stage=new_stage
+        )
+
 
 ''' ****************************************************** '''
 ''' **************** STAGE FUNCTIONS PART **************** '''
 ''' ****************************************************** '''
 
-''' Function stage 0 '''
-async def Putaway_stage_0(employee_id, payload_json):
+''' Function stage 1 '''
+async def Putaway_stage_1(employee_id, payload_json):
 
     # Initialize error parameters for sending with payload and storing log
     stage_status = False
     error_type = None
+    new_mode = 0
+    new_stage = 0
 
     # Initialize dict of data about item and location
     data = {
@@ -114,6 +123,10 @@ async def Putaway_stage_0(employee_id, payload_json):
                     # status about working correctly
                     stage_status = True
 
+                    # define new mode and stage
+                    new_mode = 2
+                    new_stage = 2
+
                 # There is no available location
                 else:
                     error_type = 'NO LOCATION'
@@ -132,6 +145,10 @@ async def Putaway_stage_0(employee_id, payload_json):
                 wanted_fields=('itemnumber__itemname', 'location')
             )
 
+            # define new mode and stage
+            new_mode = 2
+            new_stage = 2
+
             # Update data header pf webapp payload
             data.update({'item_name': pallet_info['itemnumber__itemname'], 'location': pallet_info['location']})
 
@@ -140,7 +157,7 @@ async def Putaway_stage_0(employee_id, payload_json):
         'logtype': 'GEN' if stage_status else 'ERR',
         'errorfield': error_type,
         'mode_id': 2,
-        'stage': 0,
+        'stage': 1,
         'scanpallet': scanned_pallet_id,
         'scanpalletweight': scanned_pallet_weight,
         'employeeid_id': employee_id,
@@ -148,16 +165,23 @@ async def Putaway_stage_0(employee_id, payload_json):
     }
 
     # Generate payload for sending to clients (hardware and webapp)
-    hardware_payload, webapp_payload = commons.Payloads.m2s0(status=stage_status, error_type=error_type, data=data)
+    hardware_payload, webapp_payload = commons.Payloads.m2s1(
+        status=stage_status,
+        new_mode=new_mode,
+        new_stage=new_stage,
+        error_type=error_type,
+        data=data
+    )
 
-    return log_dict, hardware_payload, webapp_payload
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
 
 
-''' Function stage 1 '''
-async def Putaway_stage_1(employee_id, payload_json):
+''' Function stage 2 '''
+async def Putaway_stage_2(employee_id, payload_json):
 
-    # Get now local datetime
-    timestamp = commons.Get_now_local_datetime()
+    # Initialize new mode and stage
+    new_mode = None
+    new_stage = None
 
     # Get data from hardware payload
     scanned_pallet_id = payload_json['pallet_id']
@@ -171,6 +195,51 @@ async def Putaway_stage_1(employee_id, payload_json):
 
     # When verify location is passed
     if verify_location_status:
+
+        new_mode = 2
+        new_stage = 3
+
+    # Generate dict of log
+    log_dict = {
+        'logtype': 'GEN' if verify_location_status else 'ERR',
+        'errorfield': None if verify_location_status else verify_location_field,
+        'mode_id': 2,
+        'stage': 2,
+        'scanpallet': scanned_pallet_id,
+        'scanlocation': scanned_location,
+        'employeeid_id': employee_id,
+        'logtimestamp': commons.Get_now_local_datetime()
+    }
+
+    # Generate payload for sending to clients (hardware and webapp)
+    hardware_payload, webapp_payload = commons.Payloads.m2s2(
+        status=verify_location_status,
+        new_mode=new_mode,
+        new_stage=new_stage,
+        scanned_location=scanned_location
+    )
+
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
+
+
+''' Function stage 3 '''
+async def Putaway_stage_3(employee_id, payload_json):
+    
+    # Get now local datetime
+    timestamp = commons.Get_now_local_datetime()
+
+    # Initialize new mode and stage
+    new_mode = None
+    new_stage = None
+
+    # Get data from hardware payload
+    scanned_pallet_id = payload_json['pallet_id']
+    scanned_location = payload_json['location']
+    place_pallet_status = payload_json['status']
+
+    if place_pallet_status:
+        new_mode = 2
+        new_stage = 1
 
         # Update palletstatus & putawaytimestamp on PALLET_DATA
         await commons.Update_pallet_info(
@@ -191,36 +260,10 @@ async def Putaway_stage_1(employee_id, payload_json):
 
     # Generate dict of log
     log_dict = {
-        'logtype': 'GEN' if verify_location_status else 'ERR',
-        'errorfield': None if verify_location_status else verify_location_field,
-        'mode_id': 2,
-        'stage': 1,
-        'scanpallet': scanned_pallet_id,
-        'scanlocation': scanned_location,
-        'employeeid_id': employee_id,
-        'logtimestamp': timestamp
-    }
-
-    # Generate payload for sending to clients (hardware and webapp)
-    hardware_payload, webapp_payload = commons.Payloads.m2s1(status=verify_location_status, scanned_location=scanned_location)
-
-    return log_dict, hardware_payload, webapp_payload
-
-
-''' Function stage 2 '''
-async def Putaway_stage_2(employee_id, payload_json):
-    
-    # Get data from hardware payload
-    scanned_pallet_id = payload_json['pallet_id']
-    scanned_location = payload_json['location']
-    place_pallet_status = payload_json['status']
-
-    # Generate dict of log
-    log_dict = {
         'logtype': 'GEN' if place_pallet_status else 'ERR',
         'errorfield': None if place_pallet_status else 'LOCATION',
         'mode_id': 2,
-        'stage': 2,
+        'stage': 3,
         'scanpallet': scanned_pallet_id,
         'scanlocation': scanned_location,
         'employeeid_id': employee_id,
@@ -228,9 +271,14 @@ async def Putaway_stage_2(employee_id, payload_json):
     }
 
     # Generate payload for sending to clients (hardware and webapp)
-    hardware_payload, webapp_payload = commons.Payloads.m2s2(status=place_pallet_status)
+    hardware_payload, webapp_payload = commons.Payloads.m2s3(
+        status=place_pallet_status,
+        new_mode=new_mode,
+        new_stage=new_stage,
+        scanned_location=scanned_location
+    )
 
-    return log_dict, hardware_payload, webapp_payload
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
 
 
 ''' ********************************************************** '''
@@ -262,6 +310,8 @@ async def Verify_pallet(scanned_pallet_id):
 
         else:
 
+            item_number = pallet_info['itemnumber']
+
             # If pallet status is 'REGISTER' --> Normal process for putaway
             if pallet_info['palletstatus'] == 'REGISTER':
                 status = 'VERIFY'
@@ -270,7 +320,7 @@ async def Verify_pallet(scanned_pallet_id):
             elif pallet_info['palletstatus'] == 'PENDPUT':
                 status = 'ALREADY'
 
-    return status, pallet_info['itemnumber']
+    return status, item_number
 
 
 ''' Function for verifying amount of item using weight '''
