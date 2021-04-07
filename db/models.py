@@ -63,6 +63,20 @@ class LayoutData(models.Model):
         db_table = 'LAYOUT_DATA'
 
 
+class LocationTransferData(models.Model):
+    locationtransferid = models.AutoField(db_column='LocationTransferID', primary_key=True)  # Field name made lowercase.
+    sourcelocation = models.ForeignKey(LayoutData, models.DO_NOTHING, db_column='SourceLocation', blank=True, null=True, related_name='sourcelocation')  # Field name made lowercase.
+    destinationlocation = models.ForeignKey(LayoutData, models.DO_NOTHING, db_column='DestinationLocation', blank=True, null=True, related_name='destinationlocation')  # Field name made lowercase.
+    locationtransferstatus = models.CharField(db_column='LocationTransferStatus', max_length=10, blank=True, null=True)  # Field name made lowercase.
+    registertimestamp = models.DateTimeField(db_column='RegisterTimestamp', blank=True, null=True)  # Field name made lowercase.
+    statustimestamp = models.DateTimeField(db_column='StatusTimestamp', blank=True, null=True)  # Field name made lowercase.
+    hardwareid = models.ForeignKey(HardwareData, models.DO_NOTHING, db_column='HardwareID', blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = False
+        db_table = 'LOCATION_TRANSFER_DATA'
+
+
 class LogData(models.Model):
     logid = models.AutoField(db_column='LogID', primary_key=True)  # Field name made lowercase.
     logtype = models.CharField(db_column='LogType', max_length=3, blank=True, null=True)  # Field name made lowercase.
