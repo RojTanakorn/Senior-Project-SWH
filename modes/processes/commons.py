@@ -199,7 +199,7 @@ async def Update_current_mode_stage(hardware_id, mode, stage):
 
 
 ''' Function for handling pallet rejection '''
-async def Handle_pallet_rejection(pallet_id, location=None):
+async def Handle_pallet_rejection(pallet_id, location=None, is_check_location=False):
     
     # Update pallet status to be REJECT
     await Update_pallet_info(
@@ -216,7 +216,7 @@ async def Handle_pallet_rejection(pallet_id, location=None):
 
     await Update_location_info(
         location=location,
-        update_info_dict={'locationstatus': 'BLANK'}
+        update_info_dict={'locationstatus': 'CHECK' if is_check_location else 'BLANK'}
     )
 
 

@@ -83,7 +83,7 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
             )
 
             # Handle data when pallet is rejected
-            await commons.Handle_pallet_rejection(pallet_id=scanned_pallet_id, location=scanned_location)
+            await commons.Handle_pallet_rejection(pallet_id=scanned_pallet_id, location=scanned_location, is_check_location=True)
 
     # Generate dict of log
     log_dict = {
