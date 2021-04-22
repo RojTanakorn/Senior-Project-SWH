@@ -104,10 +104,24 @@ async def Get_location_info(location, wanted_fields):
     )()
 
 
+''' Function for getting item information in ITEM_DATA '''
+async def Get_item_info(item_number, wanted_fields):
+    return await database_sync_to_async(
+        lambda: ItemData.objects.filter(itemnumber=item_number).values(*wanted_fields).last()
+    )()
+
+
 ''' Function for getting pallet information in PALLET_DATA '''
 async def Get_multiple_items_info(item_number_list, wanted_fields):
     return await database_sync_to_async(
         lambda: list(ItemData.objects.filter(itemnumber__in=item_number_list).values(*wanted_fields))
+    )()
+
+
+''' Function for getting pickup information in PICKUP_DATA with various filters '''
+async def Get_pickup_info_various_filters(filters_dict, wanted_fields):
+    return await database_sync_to_async(
+        lambda: list(PickupData.objects.filter(**filters_dict).values(*wanted_fields))
     )()
 
 
@@ -177,30 +191,37 @@ async def Get_remain_pickup_list(hardware_id):
     }
 
 
+''' Function for updating mode in HARDWARE_DATA '''
+async def Update_current_mode_stage(hardware_id, mode, stage):
+    await database_sync_to_async(
+        lambda: HardwareData.objects.filter(hardwareid=hardware_id).update(currentmode=mode, currentstage=stage)
+    )()
+
+
+''' Function for handling pallet rejection '''
+async def Handle_pallet_rejection(pallet_id, location=None, is_check_location=False):
+    
+    # Update pallet status to be REJECT
+    await Update_pallet_info(
+        pallet_id=pallet_id,
+        update_info_dict={'palletstatus': 'REJECT'}
+    )
+
+    if location is None:
+        # Update location status of rejected pallet to be BLANK
+        location = (await Get_pallet_info(
+            pallet_id=pallet_id,
+            wanted_fields=('location',)
+        ))['location']
+
+    await Update_location_info(
+        location=location,
+        update_info_dict={'locationstatus': 'CHECK' if is_check_location else 'BLANK'}
+    )
+
+
 ''' Class for generating payloads in every modes and stages '''
 class Payloads():
-
-    # Mode 2 Stage 0
-    def m2s0( **kwargs ):
-        hw = {
-            "information_type": 'mode',
-            "mode": 2,
-            "stage": 0,
-            "status": kwargs['status'],
-            "new_mode": 2,
-            "new_stage": 1
-        }
-
-        sw = {
-            "mode": 2,
-            "stage": 0,
-            "isNotify": True,
-            "status": kwargs['status'],
-            "error_type": kwargs['error_type'],
-            "data": kwargs['data']
-        }
-
-        return hw, sw
 
     # Mode 2 Stage 1
     def m2s1( **kwargs ):
@@ -208,15 +229,18 @@ class Payloads():
             "information_type": 'mode',
             "mode": 2,
             "stage": 1,
-            "status": kwargs['status']
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
         }
 
         sw = {
             "mode": 2,
             "stage": 1,
-            "isNotify": True,
+            "is_notify": True,
             "status": kwargs['status'],
-            "current_location": kwargs['scanned_location']
+            "error_type": kwargs['error_type'],
+            "data": kwargs['data']
         }
 
         return hw, sw
@@ -227,52 +251,51 @@ class Payloads():
             "information_type": 'mode',
             "mode": 2,
             "stage": 2,
-            "status": True
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
         }
 
         sw = {
             "mode": 2,
             "stage": 2,
-            "isNotify": True,
-            "status": kwargs['status']
+            "is_notify": True,
+            "status": kwargs['status'],
+            "current_location": kwargs['scanned_location']
         }
 
         return hw, sw
 
-    # Mode 3 Stage 0
-    def m3s0( **kwargs ):
-        sw = {
-            'mode': 3,
-            'stage': 0,
-            'isNotify': False,
-            'total_pickup': kwargs['total_pickup'],
-            'done_pickup': kwargs['done_pickup'],
-            'data': kwargs['data']
+    # Mode 2 Stage 3
+    def m2s3( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 2,
+            "stage": 3,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
         }
 
-        return sw
+        sw = {
+            "mode": 2,
+            "stage": 3,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
 
     # Mode 3 Stage 1
     def m3s1( **kwargs ):
-        hw = {
-            "information_type": 'mode',
-            "mode": 3,
-            "stage": 1,
-            "status": kwargs['status'],
-            "new_mode": 3,
-            "new_stage": 2
-        }
-
         sw = {
-            "mode": 3,
-            "stage": 1,
-            "isNotify": True,
-            "status": kwargs['status'],
-            "error_type": kwargs['error_type'],
-            "current_location": kwargs['current_location']
+            'mode': 3,
+            'stage': 1,
+            'is_notify': True
         }
 
-        return hw, sw
+        return sw
 
     # Mode 3 Stage 2
     def m3s2( **kwargs ):
@@ -281,16 +304,61 @@ class Payloads():
             "mode": 3,
             "stage": 2,
             "status": kwargs['status'],
-            "new_mode": 3 if kwargs['data'] else 0 ,
-            "new_stage": 1 if kwargs['data'] else 0
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
         }
 
         sw = {
             "mode": 3,
             "stage": 2,
-            "isNotify": True,
+            "is_notify": True,
             "status": kwargs['status'],
             "error_type": kwargs['error_type'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
+
+    # Mode 3 Stage 3
+    def m3s3( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 3,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 3,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type'],
+            # "total_pickup": kwargs['total_pickup'],
+            # "done_pickup": kwargs['done_pickup'],
+            # "data": kwargs['data']
+        }
+
+        return hw, sw
+
+    # Mode 3 Stage 4
+    def m3s4( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 4,
+            "status": True,
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 4,
+            "is_notify": True,
+            "status": True,
             "total_pickup": kwargs['total_pickup'],
             "done_pickup": kwargs['done_pickup'],
             "data": kwargs['data']
@@ -298,44 +366,29 @@ class Payloads():
 
         return hw, sw
 
-    # Mode 4 Stage 0
-    def m4s0( **kwargs ):
-        hw = {
-            "information_type": 'mode',
-            "mode": 4,
-            "stage": 0,
-            "status": kwargs['status'],
-            "new_mode": 4,
-            "new_stage": 1
-        }
-
-        sw = {
-            "mode": 4,
-            "stage": 0,
-            "isNotify": True,
-            "status": kwargs['status'],
-            "error_type": kwargs['error_type']
-        }
-
-        return hw, sw
-
     # Mode 4 Stage 1
-    def m4s1( **kwargs ):
-        hw = {
-            "information_type": 'mode',
-            "mode": 4,
-            "stage": 1,
-            "status": kwargs['status'],
-            "new_mode": 4,
-            "new_stage": 0
-        }
-
+    def m4s1():
         sw = {
             "mode": 4,
             "stage": 1,
-            "isNotify": True,
-            "status": kwargs['status'],
-            "error_type": kwargs['error_type']
+            "is_notify": True,
+        }
+
+        return sw
+
+    # Mode selection
+    def mode_selection(current_mode, current_stage):
+        hw = {
+            "information_type": 'mode_changed',
+            "new_mode": current_mode,
+            "new_stage": current_stage
+        }
+
+        sw = {
+            "mode": 0,
+            "stage": 0,
+            "is_notify": False,
+            "status": True
         }
 
         return hw, sw
