@@ -65,6 +65,7 @@ class LayoutData(models.Model):
 
 class LocationTransferData(models.Model):
     locationtransferid = models.AutoField(db_column='LocationTransferID', primary_key=True)  # Field name made lowercase.
+    palletid = models.ForeignKey('PalletData', models.DO_NOTHING, db_column='PalletID', blank=True, null=True)  # Field name made lowercase.
     sourcelocation = models.ForeignKey(LayoutData, models.DO_NOTHING, db_column='SourceLocation', blank=True, null=True, related_name='sourcelocation')  # Field name made lowercase.
     destinationlocation = models.ForeignKey(LayoutData, models.DO_NOTHING, db_column='DestinationLocation', blank=True, null=True, related_name='destinationlocation')  # Field name made lowercase.
     locationtransferstatus = models.CharField(db_column='LocationTransferStatus', max_length=10, blank=True, null=True)  # Field name made lowercase.

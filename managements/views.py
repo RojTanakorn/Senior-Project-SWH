@@ -98,6 +98,7 @@ def Location_transfer_management(request):
 
         # Store location transfer order into LOCATION_TRANSFER_DATA
         LocationTransferData.objects.create(
+            palletid_id=pallet_id,
             sourcelocation_id=source_location,
             destinationlocation_id=destination_location,
             locationtransferstatus='WAITMOVE',
