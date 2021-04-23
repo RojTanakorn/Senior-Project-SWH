@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
-from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, PickupData
+from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, PickupData, LocationTransferData
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.db.models import F
@@ -169,7 +169,7 @@ async def Get_remain_pickup_list(hardware_id):
                 )
     )()
 
-    # Get total pickip amount for today
+    # Get total pickup amount for today
     total_pickup = len(pickup_info)
 
     # Update data header
@@ -187,6 +187,40 @@ async def Get_remain_pickup_list(hardware_id):
     return {
         'total_pickup': total_pickup,
         'done_pickup': total_pickup - len(data),
+        'data': data
+    }
+
+
+''' Function for getting remaining location transfer list for moving of specific hardware '''
+async def Get_remain_location_transfer_list(hardware_id):
+    
+    # Initialize data for sending to considered hardware ID with webapp payload
+    data = []
+    
+    # Get location transfer information of wanted orders for sending to webapp, which have to be moved today
+    location_transfer_orders = await database_sync_to_async(
+        lambda: list(
+            LocationTransferData.objects.filter(
+                registertimestamp__date=Get_now_local_datetime().date(),
+                hardwareid=hardware_id
+            ).order_by('locationtransferid').values('sourcelocation', 'destinationlocation', 'locationtransferstatus')
+        )
+    )()
+
+    # Get the number of total location transfer orders for today
+    total_location_transfer = len(location_transfer_orders)
+
+    # Update data header
+    for location_transfer_order in location_transfer_orders:
+        if location_transfer_order['locationtransferstatus'] == 'WAITMOVE':
+            data.append({
+                'source': location_transfer_order['sourcelocation'],
+                'destination': location_transfer_order['destinationlocation']
+            })
+
+    return {
+        'total_location_transfer': total_location_transfer,
+        'done_location_transfer': total_location_transfer - len(data),
         'data': data
     }
 
@@ -375,6 +409,74 @@ class Payloads():
         }
 
         return sw
+
+    # Mode 4 Stage 2
+    def m4s2( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 4,
+            "stage": 2,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 4,
+            "stage": 2,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
+
+    # Mode 4 Stage 3
+    def m4s3( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 4,
+            "stage": 3,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 4,
+            "stage": 3,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
+
+    # Mode 4 Stage 4
+    def m4s4( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 4,
+            "stage": 4,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw =    {
+            "mode": 4,
+            "stage": 4,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "current_location": kwargs['scanned_location'],
+            "total_location_transfer": kwargs['total_location_transfer'],
+            "done_location_transfer": kwargs['done_location_transfer'], 
+            "data": kwargs['data']
+        }
+
+        return hw, sw
 
     # Mode selection
     def mode_selection(current_mode, current_stage):
