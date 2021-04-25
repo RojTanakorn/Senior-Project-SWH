@@ -60,10 +60,24 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
     scanned_location = payload_json['location']
 
     # Verify scanned pallet and location
-    verify_pickup_pallet_status, error_type = await Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
+    verify_pickup_pallet_status, error_type, pickup_info = await Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
 
-    # Define new mode and stage
-    if not verify_pickup_pallet_status:
+    # If pallet ID and location are correct
+    if verify_pickup_pallet_status:
+        
+        # Update pickup record status
+        await commons.Update_pickup_info(
+            pickup_id=pickup_info['pickup_id'],
+            update_info_dict={'pickupstatus': 'PICKING'}
+        )
+
+        # Update pallet status
+        await commons.Update_pallet_info(
+            pallet_id=scanned_pallet_id,
+            update_info_dict={'palletstatus': 'PICKING'}
+        )
+
+    else:
 
         # Location is wrong or task is not assigned for this hardware
         if error_type in ['LOCATION', 'HARDWARE']:
@@ -73,17 +87,19 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
         # Pallet is in wrong location
         elif error_type == 'PALLET':
             
-            # Reject
+            # Reject -> go to selection mode page
             new_mode = 0
             new_stage = 0
 
-            # Do something to define new pallet for this pickup
-            await Define_new_pallet_to_pickup(
-                location=scanned_location
+            # Handle pallet rejection which pallet in wanted location is unwanted (wrong)
+            await commons.Pallet_rejection_of_pallet_in_wrong_location(
+                unwanted_pallet_id=scanned_pallet_id,
+                wanted_pallet_id=pickup_info['wanted_pallet_id'],
+                wanted_location=scanned_location
             )
 
-            # Handle data when pallet is rejected
-            await commons.Handle_pallet_rejection(pallet_id=scanned_pallet_id, location=scanned_location, is_check_location=True)
+            # Define new pallet ID to considered pickup ID
+            await Define_new_pallet_to_pickup(pickup_id=pickup_info['pickup_id'])
 
     # Generate dict of log
     log_dict = {
@@ -121,38 +137,33 @@ async def Pickup_stage_3(hardware_id, employee_id, payload_json):
     scanned_pallet_weight = payload_json['pallet_weight']
 
     # Verify amount in pallet
-    verify_pickup_amount_status, error_type, order_info = await Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardware_id)
-
-    # Initialize variables for sending to webapp
-    total_pickup = None
-    done_pickup = None
-    data = None
+    verify_pickup_amount_status, error_type, pickup_info = await Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardware_id)
 
     # If amount is correct
     if verify_pickup_amount_status:
 
         # Update all information about picking up in related tables
-        await Update_data_after_pickup(scanned_pallet_id, order_info)
+        await Update_data_after_pickup(scanned_pallet_id, pickup_info)
     
     else:
+
+        # pallet is wrong or task is not assigned for this hardware
         if error_type in ['PALLET', 'HARDWARE']:
             new_mode = None
             new_stage = None
         
+        # Amount is not correct
         elif error_type == 'AMOUNT':
 
-            # Reject
+            # Reject -> go to selection mode page
             new_mode = 0
             new_stage = 0
 
-            # Do something to define new pallet for this pickup
-            await Define_new_pallet_to_pickup(
-                pickup_id=order_info['pickup_id'],
-                item_number=order_info['item_number']
-            )
+            # Handle pallet rejection which pallet has wrong amount of item
+            await commons.Pallet_rejection_of_pallet_amount(scanned_pallet_id)
 
-            # Handle data when pallet is rejected
-            await commons.Handle_pallet_rejection(pallet_id=scanned_pallet_id)
+            # Define new pallet ID to considered pickup ID
+            await Define_new_pallet_to_pickup(pickup_id=pickup_info['pickup_id'])
 
     # Generate dict of log
     log_dict = {
@@ -176,12 +187,18 @@ async def Pickup_stage_3(hardware_id, employee_id, payload_json):
 
     return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
 
+
 ''' Function stage 4 '''
 async def Pickup_stage_4(hardware_id, employee_id):
     
     # Initialize new mode and stage
     new_mode = 3
     new_stage = 2
+
+    # Initialize variables for sending to webapp
+    total_pickup = None
+    done_pickup = None
+    data = None
 
     # Get data about remaining pickup list
     remain_pickup_info = await commons.Get_remain_pickup_list(hardware_id)
@@ -223,9 +240,10 @@ async def Pickup_stage_4(hardware_id, employee_id):
 ''' Function for verifying pickup pallet '''
 async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id):
 
-    # Initialize status and error type
+    # Initialize status, error type, and pickup information
     verify_pickup_pallet_status = False
     error_type = None
+    pickup_info_dict = None
 
     # Check that employee go to correct pallet & location or not
     pickup_info_results = await commons.Get_pickup_info_various_filters(
@@ -257,19 +275,12 @@ async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
                 # This job is correct
                 verify_pickup_pallet_status = True
 
-                # Update pickup record status
-                await commons.Update_pickup_info(
-                    pickup_id=pickup_info['pickupid'],
-                    update_info_dict={'pickupstatus': 'PICKING'}
-                )
+        pickup_info_dict = {
+            'pickup_id': pickup_info['pickupid'],
+            'wanted_pallet_id': pickup_info['palletid']
+        }
 
-                # Update pallet status
-                await commons.Update_pallet_info(
-                    pallet_id=scanned_pallet_id,
-                    update_info_dict={'palletstatus': 'PICKING'}
-                )
-
-    return verify_pickup_pallet_status, error_type
+    return verify_pickup_pallet_status, error_type, pickup_info_dict
 
 
 ''' Function for verifying pickup amount '''
@@ -278,7 +289,7 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
     # Initialize status and error type
     verify_pickup_amount_status = False
     error_type = None
-    order_info = None
+    pickup_info_dict = None
 
     # Get information about scanned pallet ID which is being picked up
     pickup_info_results = await commons.Get_pickup_info_various_filters(
@@ -308,7 +319,7 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
             ))['palletweight']
 
             # Generate data to use outside function
-            order_info = {
+            pickup_info_dict = {
                 'order_list_id': pickup_info['orderlistid'],
                 'order_number': pickup_info['orderlistid__ordernumber'],
                 'pick_quantity': pickup_info['quantity'],
@@ -326,16 +337,16 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
             else:
                 error_type = 'AMOUNT'
 
-    return verify_pickup_amount_status, error_type, order_info
+    return verify_pickup_amount_status, error_type, pickup_info_dict
 
 
 ''' Function for updating all information after finish picking up stage 3 '''
-async def Update_data_after_pickup(scanned_pallet_id, order_info):
+async def Update_data_after_pickup(scanned_pallet_id, pickup_info):
     
     # Update pallet status as PICKED
     await commons.Update_pallet_info(
         pallet_id=scanned_pallet_id,
-        update_info_dict={'palletstatus': 'PICKED'}
+        update_info_dict={'palletstatus': 'PICKED', 'location': None}
     )
 
     # Update location status as 'BLANK'
@@ -351,20 +362,20 @@ async def Update_data_after_pickup(scanned_pallet_id, order_info):
 
     # Update pickup status as PICKED
     await commons.Update_pickup_info(
-        pickup_id=order_info['pickup_id'],
+        pickup_id=pickup_info['pickup_id'],
         update_info_dict={'pickupstatus': 'PICKED'}
     )
 
     # Update remain pickup quantity of that list
     await Update_remain_pickup_quantity(
-        order_list_id=order_info['order_list_id'],
-        pick_quantity=order_info['pick_quantity']
+        order_list_id=pickup_info['order_list_id'],
+        pick_quantity=pickup_info['pick_quantity']
     )
 
     # Check and update order status to:
     #   - PICKING (if order number isn't picked up completely)
     #   - PICKED (if order number is picked up completely)
-    await Check_and_update_order_status(order_info['order_number'])
+    await Check_and_update_order_status(pickup_info['order_number'])
 
 
 ''' Function for updating remain pickup quantity in ORDER_LIST_DATA '''
@@ -378,46 +389,42 @@ async def Update_remain_pickup_quantity(order_list_id, pick_quantity):
 
 ''' Function for Checking and updating order status '''
 async def Check_and_update_order_status(order_number):
+
+    # Get sum of remained pickup quantity in specific order number
     remain_pickup_quantity_sum = await database_sync_to_async(
         lambda: OrderListData.objects.filter(
             ordernumber=order_number
         ).aggregate(Sum('remainpickupquantity'))['remainpickupquantity__sum']
     )()
 
+    # If sum != 0
     if bool(remain_pickup_quantity_sum):
         order_status = 'PICKING'
+    
+    # If sum = 0
     else:
         order_status = 'PICKED'
-            
+    
+    # Update order status
     await database_sync_to_async(
         lambda: OrderData.objects.filter(ordernumber=order_number).update(orderstatus=order_status)
     )()
 
 
-''' Function for defining new pallet ID for pickup when old pallet ID is rejected '''
-async def Define_new_pallet_to_pickup(location=None, pickup_id=None, item_number=None):
+''' Function for defining new pallet ID for pickup task when old pallet ID is rejected '''
+async def Define_new_pallet_to_pickup(pickup_id):
     
-    # For mode 3 stage 2 ==> have only pallet ID
-    if location is not None:
-        pickup_results = (await commons.Get_pickup_info_various_filters(
-            filters_dict={'palletid__location': location, 'pickupstatus': 'WAITPICK'},
-            wanted_fields=('pickupid', 'palletid', 'palletid__itemnumber')
-        ))[0]
-
-        # Get pickup ID, item number that employee is doing
-        pickup_id = pickup_results['pickupid']
-        item_number = pickup_results['palletid__itemnumber']
-        wanted_pallet_id = pickup_results['palletid']
-
-        # Update wanted pallet ID that is not in location where is stored in database => WRONGLOC
-        await commons.Update_pallet_info(
-            pallet_id=wanted_pallet_id,
-            update_info_dict={'palletstatus': 'WRONGLOC'}
+    # Get wanted item number
+    wanted_item_number = (
+        await commons.Get_pickup_info_various_filters(
+            filters_dict={'pickupid': pickup_id},
+            wanted_fields=('palletid__itemnumber',)
         )
-    
+    )[0]['palletid__itemnumber']
+
     # Find new pallet ID that is the same item number ordered by putaway timestamp
     new_pallet_id = await database_sync_to_async(
-        lambda: PalletData.objects.filter(itemnumber=item_number, palletstatus='GENERAL').values_list('palletid', flat=True).order_by('putawaytimestamp').first()
+        lambda: PalletData.objects.filter(itemnumber=wanted_item_number, palletstatus='GENERAL').values_list('palletid', flat=True).order_by('putawaytimestamp').first()
     )()
 
     # Update data of new pallet ID

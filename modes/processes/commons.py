@@ -198,26 +198,85 @@ async def Update_current_mode_stage(hardware_id, mode, stage):
     )()
 
 
-''' Function for handling pallet rejection '''
-async def Handle_pallet_rejection(pallet_id, location=None, is_check_location=False):
-    
-    # Update pallet status to be REJECT
+''' Function for handling simple pallet rejection '''
+async def Handle_pallet_rejection(pallet_id, location):
+
     await Update_pallet_info(
         pallet_id=pallet_id,
-        update_info_dict={'palletstatus': 'REJECT'}
+        update_info_dict={'palletstatus': 'REJECT', 'location': None}
     )
-
-    if location is None:
-        # Update location status of rejected pallet to be BLANK
-        location = (await Get_pallet_info(
-            pallet_id=pallet_id,
-            wanted_fields=('location',)
-        ))['location']
 
     await Update_location_info(
         location=location,
-        update_info_dict={'locationstatus': 'CHECK' if is_check_location else 'BLANK'}
+        update_info_dict={'locationstatus': 'BLANK'}
     )
+
+
+''' Function for handling pallet rejection when wanted location stored unwanted pallet '''
+async def Pallet_rejection_of_pallet_in_wrong_location(unwanted_pallet_id, wanted_pallet_id, wanted_location):
+    
+    # 4
+    location_of_unwanted_pallet = (
+        await Get_pallet_info(
+            pallet_id=unwanted_pallet_id,
+            wanted_fields=('location',)
+        )
+    )['location']
+
+    await Update_location_info(
+        location=location_of_unwanted_pallet,
+        update_info_dict={'locationstatus': 'CHECK'}
+    )
+
+    # 1 & 3
+    await Handle_pallet_rejection(
+        pallet_id=unwanted_pallet_id,
+        location=wanted_location
+    )
+
+    # 2
+    await Update_pallet_info(
+        pallet_id=wanted_pallet_id,
+        update_info_dict={'palletstatus': 'WRONGLOC', 'location': None}
+    )
+
+
+''' Function for handling pallet rejection when pallet has wrong amount '''
+async def Pallet_rejection_of_pallet_amount(scanned_pallet_id):
+
+    location = (
+        await Get_pallet_info(
+            pallet_id=scanned_pallet_id,
+            wanted_fields=('location',)
+        )
+    )['location']
+
+    await Handle_pallet_rejection(
+        pallet_id=scanned_pallet_id,
+        location=location
+    )
+
+
+# ''' Function for handling pallet rejection '''
+# async def Handle_pallet_rejection(unwanted_pallet_id, location=None, is_check_location=False):
+    
+#     # Update pallet status to be REJECT
+#     await Update_pallet_info(
+#         pallet_id=unwanted_pallet_id,
+#         update_info_dict={'palletstatus': 'REJECT'}
+#     )
+
+#     if location is None:
+#         # Update location status of rejected pallet to be BLANK
+#         location = (await Get_pallet_info(
+#             pallet_id=unwanted_pallet_id,
+#             wanted_fields=('location',)
+#         ))['location']
+
+#     await Update_location_info(
+#         location=location,
+#         update_info_dict={'locationstatus': 'CHECK' if is_check_location else 'BLANK'}
+#     )
 
 
 ''' Class for generating payloads in every modes and stages '''
