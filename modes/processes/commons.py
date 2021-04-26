@@ -511,20 +511,3 @@ class Payloads():
         }
 
         return hw, sw
-
-    # Mode selection
-    def mode_selection(current_mode, current_stage):
-        hw = {
-            "information_type": 'mode_changed',
-            "new_mode": current_mode,
-            "new_stage": current_stage
-        }
-
-        sw = {
-            "mode": 0,
-            "stage": 0,
-            "is_notify": False,
-            "status": True
-        }
-
-        return hw, sw
