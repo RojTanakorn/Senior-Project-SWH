@@ -57,7 +57,7 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
     scanned_location = payload_json['location']
 
     # Verify pallet and location that is ready to move or not
-    verify_current_location, error_type, location_transfer_id = await Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location)
+    verify_current_location, error_type, location_transfer_id, location_transfer_info = await Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location)
 
     # Get now local datetime
     timestamp = commons.Get_now_local_datetime()
@@ -77,6 +77,26 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
             new_mode = 0
             new_stage = 0
             location_transfer_status = 'REJECT'
+
+            if error_type == 'PALLET':
+                
+                # Handle pallet rejection which pallet in wanted location is unwanted (wrong)
+                await commons.Pallet_rejection_of_pallet_in_wrong_location(
+                    unwanted_pallet_id=scanned_pallet_id,
+                    wanted_pallet_id=location_transfer_info['wanted_pallet_id'],
+                    wanted_location=scanned_location
+                )
+
+            elif error_type == 'AMOUNT':
+                
+                # Handle pallet rejection which pallet has wrong amount of item
+                await commons.Pallet_rejection_of_pallet_amount(scanned_pallet_id)
+
+            # Restore destination location status from BOOK to BLANK (unbook)
+            await commons.Update_location_info(
+                location=location_transfer_info['destination_location'],
+                update_info_dict={'locationstatus': 'BLANK'}
+            )
     
     await database_sync_to_async(
         lambda: LocationTransferData.objects.filter(locationtransferid=location_transfer_id).update(
@@ -257,43 +277,50 @@ async def Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet
     verify_current_location = False
     error_type = None
     location_transfer_id = None
+    location_transfer_info = None
+    # wanted_pallet_id = None
 
-    location_transfer_info = await database_sync_to_async(
+    location_transfer_result = await database_sync_to_async(
         lambda: LocationTransferData.objects.filter(sourcelocation=scanned_location).values(
-            'locationtransferid', 'palletid', 'palletid__palletweight', 'locationtransferstatus', 'hardwareid'
+            'locationtransferid', 'palletid', 'palletid__palletweight', 'destinationlocation', 'locationtransferstatus', 'hardwareid'
         ).order_by('locationtransferid').last()
     )()
 
-    if location_transfer_info is None:
+    if location_transfer_result is None:
 
         # No task for this source location
         error_type = 'LOCATION'
 
-    elif location_transfer_info['locationtransferstatus'] != 'WAITMOVE':
+    elif location_transfer_result['locationtransferstatus'] != 'WAITMOVE':
         error_type = 'STATUS'
 
     else:
-        location_transfer_id = location_transfer_info['locationtransferid']
+        
+        location_transfer_id = location_transfer_result['locationtransferid']
+        # wanted_pallet_id = location_transfer_result['palletid']
 
-        if location_transfer_info['hardwareid'] != hardware_id:
+        location_transfer_info = {
+            'wanted_pallet_id': location_transfer_result['palletid'],
+            'destination_location': location_transfer_result['destinationlocation']
+        }
+
+        if location_transfer_result['hardwareid'] != hardware_id:
             error_type = 'HARDWARE'
         
-        elif location_transfer_info['palletid'] != scanned_pallet_id:
+        elif location_transfer_result['palletid'] != scanned_pallet_id:
             error_type = 'PALLET'
-            # **handle reject like pickup process
 
         else:
             # Get main-max of expected weight
-            min_weight, max_weight = commons.Range_expected_weight(location_transfer_info['palletid__palletweight'])
+            min_weight, max_weight = commons.Range_expected_weight(location_transfer_result['palletid__palletweight'])
 
             if min_weight <= scanned_pallet_weight <= max_weight:
                 verify_current_location = True
 
             else:
                 error_type = 'AMOUNT'
-                # **handle reject
 
-    return verify_current_location, error_type, location_transfer_id
+    return verify_current_location, error_type, location_transfer_id, location_transfer_info
 
 
 ''' Function for verifying new location '''
@@ -303,18 +330,18 @@ async def Verify_new_location(hardware_id, scanned_pallet_id, scanned_location):
     verify_new_location = False
     error_type = None
 
-    location_transfer_info = await database_sync_to_async(
+    location_transfer_result = await database_sync_to_async(
         lambda: LocationTransferData.objects.filter(locationtransferstatus='MOVING', hardwareid=hardware_id).values(
             'palletid', 'destinationlocation'
         ).last()
     )()
 
-    if location_transfer_info['palletid'] != scanned_pallet_id:
+    if location_transfer_result['palletid'] != scanned_pallet_id:
 
         # pallet ID is different from stage 2
         error_type = 'PALLET'
 
-    elif location_transfer_info['destinationlocation'] != scanned_location:
+    elif location_transfer_result['destinationlocation'] != scanned_location:
 
         # Employee goes to wrong location
         error_type = 'LOCATION'
