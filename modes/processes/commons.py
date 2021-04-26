@@ -198,6 +198,87 @@ async def Update_current_mode_stage(hardware_id, mode, stage):
     )()
 
 
+''' Function for handling simple pallet rejection '''
+async def Handle_pallet_rejection(pallet_id, location):
+
+    await Update_pallet_info(
+        pallet_id=pallet_id,
+        update_info_dict={'palletstatus': 'REJECT', 'location': None}
+    )
+
+    await Update_location_info(
+        location=location,
+        update_info_dict={'locationstatus': 'BLANK'}
+    )
+
+
+''' Function for handling pallet rejection when wanted location stored unwanted pallet '''
+async def Pallet_rejection_of_pallet_in_wrong_location(unwanted_pallet_id, wanted_pallet_id, wanted_location):
+    
+    # 4
+    location_of_unwanted_pallet = (
+        await Get_pallet_info(
+            pallet_id=unwanted_pallet_id,
+            wanted_fields=('location',)
+        )
+    )['location']
+
+    await Update_location_info(
+        location=location_of_unwanted_pallet,
+        update_info_dict={'locationstatus': 'CHECK'}
+    )
+
+    # 1 & 3
+    await Handle_pallet_rejection(
+        pallet_id=unwanted_pallet_id,
+        location=wanted_location
+    )
+
+    # 2
+    await Update_pallet_info(
+        pallet_id=wanted_pallet_id,
+        update_info_dict={'palletstatus': 'WRONGLOC', 'location': None}
+    )
+
+
+''' Function for handling pallet rejection when pallet has wrong amount '''
+async def Pallet_rejection_of_pallet_amount(scanned_pallet_id):
+
+    location = (
+        await Get_pallet_info(
+            pallet_id=scanned_pallet_id,
+            wanted_fields=('location',)
+        )
+    )['location']
+
+    await Handle_pallet_rejection(
+        pallet_id=scanned_pallet_id,
+        location=location
+    )
+
+
+# ''' Function for handling pallet rejection '''
+# async def Handle_pallet_rejection(unwanted_pallet_id, location=None, is_check_location=False):
+    
+#     # Update pallet status to be REJECT
+#     await Update_pallet_info(
+#         pallet_id=unwanted_pallet_id,
+#         update_info_dict={'palletstatus': 'REJECT'}
+#     )
+
+#     if location is None:
+#         # Update location status of rejected pallet to be BLANK
+#         location = (await Get_pallet_info(
+#             pallet_id=unwanted_pallet_id,
+#             wanted_fields=('location',)
+#         ))['location']
+
+#     await Update_location_info(
+#         location=location,
+#         update_info_dict={'locationstatus': 'CHECK' if is_check_location else 'BLANK'}
+#     )
+
+
 ''' Class for generating payloads in every modes and stages '''
 class Payloads():
 
@@ -275,28 +356,6 @@ class Payloads():
 
         return sw
 
-    # Mode 3 Stage 1
-    def m3s1( **kwargs ):
-        hw = {
-            "information_type": 'mode',
-            "mode": 3,
-            "stage": 1,
-            "status": kwargs['status'],
-            "new_mode": 3,
-            "new_stage": 2
-        }
-
-        sw = {
-            "mode": 3,
-            "stage": 1,
-            "is_notify": True,
-            "status": kwargs['status'],
-            "error_type": kwargs['error_type'],
-            "current_location": kwargs['current_location']
-        }
-
-        return hw, sw
-
     # Mode 3 Stage 2
     def m3s2( **kwargs ):
         hw = {
@@ -304,8 +363,8 @@ class Payloads():
             "mode": 3,
             "stage": 2,
             "status": kwargs['status'],
-            "new_mode": 3 if kwargs['data'] else 0 ,
-            "new_stage": 1 if kwargs['data'] else 0
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
         }
 
         sw = {
@@ -314,6 +373,51 @@ class Payloads():
             "is_notify": True,
             "status": kwargs['status'],
             "error_type": kwargs['error_type'],
+            "current_location": kwargs['scanned_location']
+        }
+
+        return hw, sw
+
+    # Mode 3 Stage 3
+    def m3s3( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 3,
+            "status": kwargs['status'],
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 3,
+            "is_notify": True,
+            "status": kwargs['status'],
+            "error_type": kwargs['error_type'],
+            # "total_pickup": kwargs['total_pickup'],
+            # "done_pickup": kwargs['done_pickup'],
+            # "data": kwargs['data']
+        }
+
+        return hw, sw
+
+    # Mode 3 Stage 4
+    def m3s4( **kwargs ):
+        hw = {
+            "information_type": 'mode',
+            "mode": 3,
+            "stage": 4,
+            "status": True,
+            "new_mode": kwargs['new_mode'],
+            "new_stage": kwargs['new_stage']
+        }
+
+        sw = {
+            "mode": 3,
+            "stage": 4,
+            "is_notify": True,
+            "status": True,
             "total_pickup": kwargs['total_pickup'],
             "done_pickup": kwargs['done_pickup'],
             "data": kwargs['data']
