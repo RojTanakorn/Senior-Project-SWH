@@ -207,7 +207,11 @@ def Notify_all_pickup_coming():
     # Get all hardware IDs which have to pick up items today
     hardware_ids = list(set(PickupData.objects.filter(pickupstatus='WAITPICK').values_list('hardwareid', flat=True)))
 
+    webapp_payload = commons.Payloads.m3s1()
     # Access each hardware ID
     for hardware_id in hardware_ids:
 
-        async_to_sync(commons.Notify_pickup)(hardware_id)
+        async_to_sync(commons.Notify_clients)(
+            hardware_id=hardware_id,
+            webapp_payload=webapp_payload
+        )

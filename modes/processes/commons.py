@@ -265,15 +265,12 @@ class Payloads():
 
         return hw, sw
 
-    # Mode 3 Stage 0
-    def m3s0( **kwargs ):
+    # Mode 3 Stage 1
+    def m3s1( **kwargs ):
         sw = {
             'mode': 3,
-            'stage': 0,
-            'is_notify': False,
-            'total_pickup': kwargs['total_pickup'],
-            'done_pickup': kwargs['done_pickup'],
-            'data': kwargs['data']
+            'stage': 1,
+            'is_notify': True
         }
 
         return sw
