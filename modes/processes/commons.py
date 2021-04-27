@@ -291,6 +291,13 @@ async def Pallet_rejection_of_pallet_amount(scanned_pallet_id):
     )
 
 
+''' Function for getting hardware status of specific hardware ID '''
+async def Get_hardware_status(hardware_id):
+    return await database_sync_to_async(
+        lambda: HardwareData.objects.filter(hardwareid=hardware_id).values_list('isactive', flat=True).first()
+    )()
+
+
 ''' Class for generating payloads in every modes and stages '''
 class Payloads():
 
@@ -511,3 +518,47 @@ class Payloads():
         }
 
         return hw, sw
+
+    # Mode selection payload for webapp
+    def mode_selections(new_mode, **kwargs ):
+        
+        if new_mode == 0:
+            return {
+                "mode": 0,
+                "stage": 0,
+                "pickup_amount": kwargs['pickup_amount'],
+                "location_transfer_amount": kwargs['location_transfer_amount']
+            }
+
+        elif new_mode == 2:
+            return {
+                "mode": 2,
+                "stage": 0,
+                "is_notify": False,
+                "hardware_status": kwargs['hardware_status']
+            }
+
+        elif new_mode == 3:
+            return {
+                "mode": 3,
+                "stage": 0,
+                "is_notify": False,
+                "hardware_status": kwargs['hardware_status'],
+                "total_pickup": kwargs['total_pickup'],
+                "done_pickup": kwargs['done_pickup'],
+                "data": kwargs['data']
+            }
+
+        elif new_mode == 4:
+            return {
+                "mode": 4,
+                "stage": 0,
+                "is_notify": False,
+                "hardware_status": kwargs['hardware_status'],
+                "total_location_transfer": kwargs['total_location_transfer'],
+                "done_location_transfer": kwargs['done_location_transfer'], 
+                "data": kwargs['data']
+            }
+
+        else:
+            return None

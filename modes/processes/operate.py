@@ -3,6 +3,7 @@ from .putaway import Putaway_mode
 from .pickup import Pickup_mode
 from .location_transfer import Location_transfer_mode
 from . import commons
+from . import mode_selection_processes
 
 
 ''' Function for operating normal payload of mode process '''
@@ -46,15 +47,39 @@ async def Mode_selection_management(its_serial_number, payload_string):
     # Convert string to json (dict)
     payload_json = json.loads(payload_string)
 
-    # Generate payload for sending to clients (hardware and webapp)
-    hardware_payload, webapp_payload = commons.Payloads.mode_selection(
-        payload_json['mode'],
-        payload_json['stage']
+    # Get hardware ID's sender
+    hardware_id = its_serial_number[2:]
+
+    # Define hardware payload (as same as received payload from webapp)
+    hardware_payload = payload_json
+
+    # Get new mode and stage from payload
+    new_mode = payload_json['new_mode']
+    new_stage = payload_json['new_stage']
+
+    # Call function according to new mode
+    if new_mode == 0:
+        webapp_payload = await mode_selection_processes.select_mode_0(hardware_id)
+
+    elif new_mode == 2:
+        webapp_payload = await mode_selection_processes.select_mode_2(hardware_id)
+
+    elif new_mode == 3:
+        webapp_payload = await mode_selection_processes.select_mode_3(hardware_id)
+
+    elif new_mode == 4:
+        webapp_payload = await mode_selection_processes.select_mode_4(hardware_id)
+
+    # Update current mode and stage of specific hardware ID on HARDWARE_DATA
+    await commons.Update_current_mode_stage(
+        hardware_id=hardware_id,
+        mode=new_mode,
+        stage=new_stage
     )
 
     # Send payload to clients
     await commons.Notify_clients(
-        hardware_id=its_serial_number[2:],
+        hardware_id=hardware_id,
         hardware_payload=hardware_payload,
         webapp_payload=webapp_payload
     )
