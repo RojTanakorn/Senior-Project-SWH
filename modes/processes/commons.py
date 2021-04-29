@@ -567,3 +567,16 @@ class Payloads():
 
         else:
             return None
+
+    # Mode 5 (connect / disconnect)
+    def m5_to_hardware(status):
+        return {
+            "mode": 5,
+            "webapp_status": status
+        }
+
+    def m5_to_webapp(status):
+        return {
+            "mode": 5,
+            "hardware_status": status
+        }

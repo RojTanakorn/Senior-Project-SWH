@@ -2,26 +2,20 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.conf import settings
+from rest_framework.authtoken.models import Token
+from datetime import datetime, timedelta
+from django.utils import timezone
+
 
 # Create your models here.
-class EmployeeData(models.Model):
-    employeeid = models.AutoField(db_column='EmployeeID', primary_key=True)  # Field name made lowercase.
-    name = models.CharField(db_column='Name', max_length=30, blank=True, null=True)  # Field name made lowercase.
-    surname = models.CharField(db_column='Surname', max_length=50, blank=True, null=True)  # Field name made lowercase.
-    position = models.ForeignKey('PositionData', models.DO_NOTHING, db_column='Position', blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        managed = False
-        db_table = 'EMPLOYEE_DATA'
-
-
 class HardwareData(models.Model):
     hardwareid = models.CharField(db_column='HardwareID', primary_key=True, max_length=8)  # Field name made lowercase.
     hardwaretype = models.CharField(db_column='HardwareType', max_length=1, blank=True, null=True)  # Field name made lowercase.
     currentmode = models.ForeignKey('ModeData', models.DO_NOTHING, db_column='CurrentMode', blank=True, null=True)  # Field name made lowercase.
     currentstage = models.SmallIntegerField(db_column='CurrentStage', blank=True, null=True)  # Field name made lowercase.
     isactive = models.BooleanField(db_column='IsActive', blank=True, null=True)  # Field name made lowercase.
-    employeeid = models.ForeignKey(EmployeeData, models.DO_NOTHING, db_column='EmployeeID', blank=True, null=True)  # Field name made lowercase.
+    employeeid = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING, db_column='EmployeeID', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
         managed = False
@@ -91,7 +85,7 @@ class LogData(models.Model):
     scanpallet = models.CharField(db_column='ScanPallet', max_length=30, blank=True, null=True)  # Field name made lowercase.
     scanpalletweight = models.FloatField(db_column='ScanPalletWeight', blank=True, null=True)  # Field name made lowercase.
     scanlocation = models.CharField(db_column='ScanLocation', max_length=30, blank=True, null=True)  # Field name made lowercase.
-    employeeid = models.ForeignKey(EmployeeData, models.DO_NOTHING, db_column='EmployeeID', blank=True, null=True)  # Field name made lowercase.
+    employeeid = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING, db_column='EmployeeID', blank=True, null=True)  # Field name made lowercase.
     logtimestamp = models.DateTimeField(db_column='LogTimestamp', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
