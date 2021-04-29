@@ -5,6 +5,9 @@ from channels.db import database_sync_to_async
 
 async def select_mode_0(hardware_id):
     
+    # Get hardware status
+    hardware_status = await commons.Get_hardware_status(hardware_id)
+    
     # Get remaining amount of pickup task
     remain_pickup_info = await commons.Get_remain_pickup_list(hardware_id)
     pickup_amount = remain_pickup_info['total_pickup'] - remain_pickup_info['done_pickup']
@@ -16,6 +19,7 @@ async def select_mode_0(hardware_id):
     # Return webapp payload
     return commons.Payloads.mode_selections(
         new_mode=0,
+        hardware_status=hardware_status,
         pickup_amount=pickup_amount,
         location_transfer_amount=location_transfer_amount
     )

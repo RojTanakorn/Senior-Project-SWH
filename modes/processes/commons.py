@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from channels.layers import get_channel_layer
-from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, PickupData, LocationTransferData
+from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, PickupData, LocationTransferData, UserData
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.db.models import F
@@ -228,7 +228,11 @@ async def Get_remain_location_transfer_list(hardware_id):
 ''' Function for updating mode in HARDWARE_DATA '''
 async def Update_current_mode_stage(hardware_id, mode, stage):
     await database_sync_to_async(
-        lambda: HardwareData.objects.filter(hardwareid=hardware_id).update(currentmode=mode, currentstage=stage)
+        lambda: HardwareData.objects.filter(hardwareid=hardware_id, isactive=True).update(currentmode=mode, currentstage=stage)
+    )()
+
+    await database_sync_to_async(
+        lambda: UserData.objects.filter(hardwareid=hardware_id).update(currentmode=mode, currentstage=stage)
     )()
 
 
@@ -526,6 +530,7 @@ class Payloads():
             return {
                 "mode": 0,
                 "stage": 0,
+                "hardware_status": kwargs['hardware_status'],
                 "pickup_amount": kwargs['pickup_amount'],
                 "location_transfer_amount": kwargs['location_transfer_amount']
             }

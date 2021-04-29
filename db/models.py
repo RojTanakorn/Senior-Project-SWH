@@ -1,4 +1,7 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # Create your models here.
 class EmployeeData(models.Model):
@@ -183,3 +186,21 @@ class RfidTagData(models.Model):
     class Meta:
         managed = False
         db_table = 'RFID_TAG_DATA'
+
+
+class UserData(models.Model):
+    userid = models.OneToOneField(User, db_column='UserID', on_delete=models.CASCADE)  # Field name made lowercase.
+    currentmode = models.ForeignKey(ModeData, models.DO_NOTHING, db_column='CurrentMode', blank=True, null=True)  # Field name made lowercase.
+    currentstage = models.SmallIntegerField(db_column='CurrentStage', blank=True, null=True)  # Field name made lowercase.
+    ison = models.BooleanField(db_column='IsOn', blank=True, null=True)  # Field name made lowercase.
+    hardwareid = models.ForeignKey(HardwareData, models.DO_NOTHING, db_column='HardwareID', blank=True, null=True)  # Field name made lowercase.
+
+    class Meta:
+        managed = False
+        db_table = 'USER_DATA'
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserData.objects.create(userid=instance, currentmode_id=0, currentstage=0, ison=False)
