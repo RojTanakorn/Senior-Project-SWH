@@ -50,12 +50,12 @@ async def Mode_selection_management(its_serial_number, payload_string):
     # Get hardware ID's sender
     hardware_id = its_serial_number[2:]
 
-    # Define hardware payload (as same as received payload from webapp)
-    hardware_payload = payload_json
-
     # Get new mode and stage from payload
     new_mode = payload_json['new_mode']
     new_stage = payload_json['new_stage']
+
+    # Define hardware payload (as same as received payload from webapp)
+    hardware_payload = commons.Payloads.mode_changed_to_hardware(new_mode, new_stage)
 
     # Call function according to new mode
     if new_mode == 0:

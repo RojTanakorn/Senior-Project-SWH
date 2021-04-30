@@ -5,6 +5,7 @@ from db.models import LogData, HardwareData, PalletData, LayoutData, ItemData, P
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.db.models import F
+import hashlib
 
 
 ''' Constants '''
@@ -302,6 +303,11 @@ async def Get_hardware_status(hardware_id):
     )()
 
 
+''' Function for getting hashed ticket '''
+def Get_hashed_ticket(unhashed_ticket):
+    return hashlib.sha256(unhashed_ticket.encode()).hexdigest()
+
+
 ''' Class for generating payloads in every modes and stages '''
 class Payloads():
 
@@ -569,9 +575,10 @@ class Payloads():
             return None
 
     # Mode 5 (connect / disconnect)
-    def m5_to_hardware(status):
+    def m5_to_hardware(status, employee_id=None):
         return {
             "mode": 5,
+            "employee_id": employee_id,
             "webapp_status": status
         }
 
@@ -579,4 +586,12 @@ class Payloads():
         return {
             "mode": 5,
             "hardware_status": status
+        }
+
+    # Mode changed
+    def mode_changed_to_hardware(new_mode, new_stage):
+        return {
+            "information_type": 'mode_changed',
+            "new_mode": new_mode,
+            "new_stage": new_stage
         }

@@ -8,7 +8,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework import exceptions
 from django.contrib.auth.models import User
 from modes.processes import commons
-from db.models import HardwareData
+from db.models import HardwareData, UserData
 import hashlib
 import os
 from django.core.cache import cache
@@ -117,8 +117,10 @@ class HardwareAndTicketAuthentication(APIView):
         is_ready = False
         unhashed_ticket = None
 
+        user_object = UserData.objects.filter(hardwareid=hardware.hardwareid).first()
+
         # If hardware is active and it is not binded to any employees (available for usage)
-        if hardware.isactive and hardware.employeeid is None:
+        if user_object is None:
             
             # Set is_ready to TRUE
             is_ready = True
@@ -132,12 +134,10 @@ class HardwareAndTicketAuthentication(APIView):
             ).hexdigest()
 
             # Generate hashed ticket from unhashed for storing into CACHE (with TIMEOUT) --> using SHA256
-            hashed_ticket = hashlib.sha256(unhashed_ticket.encode()).hexdigest()
-
-            token = Token.objects.get(key=request.META.get('HTTP_AUTHORIZATION')[6:])
+            hashed_ticket = commons.Get_hashed_ticket(unhashed_ticket)
 
             # Store hashed ticket into CACHE
-            cache.set(request.META['REMOTE_ADDR'], {'user_id': token.user_id, 'hashed_ticket': hashed_ticket})
+            cache.set(request.META['REMOTE_ADDR'], {'user_id': request.user.id, 'hashed_ticket': hashed_ticket})
         
         # Return response
         return Response({

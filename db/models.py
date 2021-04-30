@@ -183,7 +183,7 @@ class RfidTagData(models.Model):
 
 
 class UserData(models.Model):
-    userid = models.OneToOneField(User, db_column='UserID', on_delete=models.CASCADE)  # Field name made lowercase.
+    userid = models.OneToOneField(User, db_column='UserID', on_delete=models.CASCADE, primary_key=True)  # Field name made lowercase.
     currentmode = models.ForeignKey(ModeData, models.DO_NOTHING, db_column='CurrentMode', blank=True, null=True)  # Field name made lowercase.
     currentstage = models.SmallIntegerField(db_column='CurrentStage', blank=True, null=True)  # Field name made lowercase.
     ison = models.BooleanField(db_column='IsOn', blank=True, null=True)  # Field name made lowercase.
