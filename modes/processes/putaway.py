@@ -1,6 +1,6 @@
 from channels.db import database_sync_to_async
 from . import commons
-from db.models import LayoutData
+from db.models import LayoutData, ItemData
 
 
 ''' **************************************************** '''
@@ -96,7 +96,7 @@ async def Putaway_stage_1(employee_id, payload_json):
             if verify_amount_status:
 
                 # Define location that be used to store pallet
-                location = await Define_location()
+                location = await Define_location(item_number)
 
                 # Update data header pf webapp payload
                 data.update({'location': location})
@@ -353,10 +353,14 @@ def Calculate_expected_weight(weight_per_piece, amount_per_pallet):
 
 
 ''' Function for defining location '''
-async def Define_location():
-    # This is mock of defining
+async def Define_location(item_number):
+    
+    row = await database_sync_to_async(
+        lambda: ItemData.objects.filter(itemnumber=item_number).values_list('itemgroup__row', flat=True).first()
+    )()
+
     location = await database_sync_to_async(
-        lambda: LayoutData.objects.filter(locationstatus='BLANK').values_list('location', flat=True).first()
+        lambda: LayoutData.objects.filter(locationstatus='BLANK', row=row).values_list('location', flat=True).first()
     )()
 
     return location

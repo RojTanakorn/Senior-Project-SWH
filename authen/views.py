@@ -12,6 +12,9 @@ from db.models import HardwareData, UserData
 import hashlib
 import os
 from django.core.cache import cache
+from django.http.response import HttpResponse
+from PIL import Image
+from django.conf import settings
 
 
 ''' Class for authenticating username and password '''
@@ -145,3 +148,25 @@ class HardwareAndTicketAuthentication(APIView):
             'is_ready': is_ready,
             'ticket': unhashed_ticket
         })
+
+
+''' Class for providing user image '''
+class GetUserImage(APIView):
+    
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, format=None):
+
+        user = UserData.objects.filter(userid=request.user.id).values().first()
+        response = HttpResponse(content_type="image/jpeg")
+
+        user_image_path = str(user['userimagepath'] or '')
+
+        try:
+            img = Image.open(settings.BASE_DIR + '/' + user_image_path)
+        except:
+            img = Image.open(settings.BASE_DIR + '/user_images/user_default.jpg')
+
+        img.save(response, "JPEG")
+        return response

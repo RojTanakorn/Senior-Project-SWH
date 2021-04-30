@@ -15,7 +15,6 @@ class HardwareData(models.Model):
     currentmode = models.ForeignKey('ModeData', models.DO_NOTHING, db_column='CurrentMode', blank=True, null=True)  # Field name made lowercase.
     currentstage = models.SmallIntegerField(db_column='CurrentStage', blank=True, null=True)  # Field name made lowercase.
     isactive = models.BooleanField(db_column='IsActive', blank=True, null=True)  # Field name made lowercase.
-    employeeid = models.ForeignKey(settings.AUTH_USER_MODEL, models.DO_NOTHING, db_column='EmployeeID', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
         managed = False
@@ -37,7 +36,7 @@ class ItemData(models.Model):
 class ItemGroupData(models.Model):
     itemgroup = models.CharField(db_column='ItemGroup', primary_key=True, max_length=50)  # Field name made lowercase.
     name = models.CharField(db_column='Name', max_length=100, blank=True, null=True)  # Field name made lowercase.
-    zone = models.CharField(db_column='Zone', max_length=1, blank=True, null=True)  # Field name made lowercase.
+    row = models.CharField(db_column='Row', max_length=2, blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
         managed = False
@@ -46,11 +45,7 @@ class ItemGroupData(models.Model):
 
 class LayoutData(models.Model):
     location = models.CharField(db_column='Location', primary_key=True, max_length=30)  # Field name made lowercase.
-    locationtag = models.CharField(db_column='LocationTag', max_length=30, blank=True, null=True)  # Field name made lowercase.
-    description = models.CharField(db_column='Description', max_length=500, blank=True, null=True)  # Field name made lowercase.
-    inventorystatus = models.CharField(db_column='InventoryStatus', max_length=50, blank=True, null=True)  # Field name made lowercase.
     locationstatus = models.CharField(db_column='LocationStatus', max_length=10, blank=True, null=True)  # Field name made lowercase.
-    zone = models.CharField(db_column='Zone', max_length=1, blank=True, null=True)  # Field name made lowercase.
     row = models.CharField(db_column='Row', max_length=2, blank=True, null=True)  # Field name made lowercase.
     shelf = models.CharField(db_column='Shelf', max_length=2, blank=True, null=True)  # Field name made lowercase.
     position = models.CharField(db_column='Position', max_length=2, blank=True, null=True)  # Field name made lowercase.
@@ -163,35 +158,20 @@ class PickupData(models.Model):
         db_table = 'PICKUP_DATA'
 
 
-class PositionData(models.Model):
-    position = models.CharField(db_column='Position', primary_key=True, max_length=3)  # Field name made lowercase.
-    description = models.CharField(db_column='Description', max_length=100, blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        managed = False
-        db_table = 'POSITION_DATA'
-
-
-class RfidTagData(models.Model):
-    rfidtag = models.CharField(db_column='RfidTag', primary_key=True, max_length=30)  # Field name made lowercase.
-    attachtype = models.CharField(db_column='AttachType', max_length=12, blank=True, null=True)  # Field name made lowercase.
-    code = models.CharField(db_column='Code', max_length=30, blank=True, null=True)  # Field name made lowercase.
-
-    class Meta:
-        managed = False
-        db_table = 'RFID_TAG_DATA'
-
-
 class UserData(models.Model):
     userid = models.OneToOneField(User, db_column='UserID', on_delete=models.CASCADE, primary_key=True)  # Field name made lowercase.
     currentmode = models.ForeignKey(ModeData, models.DO_NOTHING, db_column='CurrentMode', blank=True, null=True)  # Field name made lowercase.
     currentstage = models.SmallIntegerField(db_column='CurrentStage', blank=True, null=True)  # Field name made lowercase.
     ison = models.BooleanField(db_column='IsOn', blank=True, null=True)  # Field name made lowercase.
     hardwareid = models.ForeignKey(HardwareData, models.DO_NOTHING, db_column='HardwareID', blank=True, null=True)  # Field name made lowercase.
+    userimagepath = models.ImageField(upload_to='user_images', db_column='UserImagePath', blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'USER_DATA'
+
+    def __str__(self):
+        return self.userid.username
 
 
 @receiver(post_save, sender=User)
