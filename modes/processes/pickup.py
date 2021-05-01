@@ -343,12 +343,6 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
 ''' Function for updating all information after finish picking up stage 3 '''
 async def Update_data_after_pickup(scanned_pallet_id, pickup_info):
     
-    # Update pallet status as PICKED
-    await commons.Update_pallet_info(
-        pallet_id=scanned_pallet_id,
-        update_info_dict={'palletstatus': 'PICKED', 'location': None}
-    )
-
     # Update location status as 'BLANK'
     location = (await commons.Get_pallet_info(
         pallet_id=scanned_pallet_id,
@@ -358,6 +352,12 @@ async def Update_data_after_pickup(scanned_pallet_id, pickup_info):
     await commons.Update_location_info(
         location=location,
         update_info_dict={'locationstatus': 'BLANK'}
+    )
+
+    # Update pallet status as PICKED
+    await commons.Update_pallet_info(
+        pallet_id=scanned_pallet_id,
+        update_info_dict={'palletstatus': 'PICKED', 'location': None}
     )
 
     # Update pickup status as PICKED

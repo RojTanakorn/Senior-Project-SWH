@@ -1,5 +1,5 @@
 from django.http import HttpResponse, JsonResponse
-from db.models import OrderData, OrderListData, PickupData, ItemData, PalletData, HardwareData, LayoutData, LocationTransferData
+from db.models import OrderData, OrderListData, PickupData, ItemData, PalletData, HardwareData, LayoutData, LocationTransferData, UserData
 from modes.processes import commons
 from asgiref.sync import async_to_sync
 import json
@@ -184,7 +184,7 @@ def Define_hardware():
     pickup_records = list(PickupData.objects.filter(pickupstatus='WAITHW'))
 
     # Get all active hardware ID
-    active_hardware_ids = list(HardwareData.objects.filter(isactive=True).values_list('hardwareid', flat=True))
+    active_hardware_ids = list(UserData.objects.filter(ison=True, hardwareid__isnull=False).values_list('hardwareid', flat=True))
 
     # Initialize hardware ID index for spreading tasks
     hardware_id_index = 0
@@ -221,12 +221,9 @@ def Notify_all_pickup_coming():
 ''' Function of Location Transfer Management '''
 def Location_transfer_management(request):
 
-    # Get payload as JSON
-    payload_json = json.loads((request.body).decode('utf-8'))
-
-    # Extract data to source location and destination location
-    source_location = payload_json['source_location']
-    destination_location = payload_json['destination_location']
+    # Extract data to source location and destination location from params
+    source_location = request.GET.get('source', '')
+    destination_location = request.GET.get('destination', '')
 
     # Initialize list of error
     error_messages = []
@@ -286,7 +283,7 @@ def Location_transfer_management(request):
     if len(error_messages) == 0:
 
         # Get all active hardware ID
-        active_hardware_ids = list(HardwareData.objects.filter(isactive=True).values_list('hardwareid', flat=True))
+        active_hardware_ids = list(UserData.objects.filter(ison=True, hardwareid__isnull=False).values_list('hardwareid', flat=True))
         
         # Get count of each hardware's tasks today
         today_hardware_tasks = list(LocationTransferData.objects.filter(

@@ -291,9 +291,6 @@ async def Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet
         # No task for this source location
         error_type = 'LOCATION'
 
-    elif location_transfer_result['locationtransferstatus'] != 'WAITMOVE':
-        error_type = 'STATUS'
-
     else:
         
         location_transfer_id = location_transfer_result['locationtransferid']
@@ -306,6 +303,9 @@ async def Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet
 
         if location_transfer_result['hardwareid'] != hardware_id:
             error_type = 'HARDWARE'
+
+        elif location_transfer_result['locationtransferstatus'] != 'WAITMOVE':
+            error_type = 'STATUS'
         
         elif location_transfer_result['palletid'] != scanned_pallet_id:
             error_type = 'PALLET'
