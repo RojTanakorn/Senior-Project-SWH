@@ -9,7 +9,7 @@ import hashlib
 
 
 ''' Constants '''
-EMPTY_PALLET_WEIGHT = 5.00
+EMPTY_PALLET_WEIGHT = 0.134
 PALLET_WEIGHT_ERROR = 0.1
 
 

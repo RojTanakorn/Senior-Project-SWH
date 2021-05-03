@@ -98,11 +98,12 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
                 update_info_dict={'locationstatus': 'BLANK'}
             )
     
-    await database_sync_to_async(
-        lambda: LocationTransferData.objects.filter(locationtransferid=location_transfer_id).update(
-            locationtransferstatus=location_transfer_status, statustimestamp=None if location_transfer_status=='WAITMOVE' else timestamp
-        )
-    )()
+    if error_type != 'STATUS':
+        await database_sync_to_async(
+            lambda: LocationTransferData.objects.filter(locationtransferid=location_transfer_id).update(
+                locationtransferstatus=location_transfer_status, statustimestamp=None if location_transfer_status=='WAITMOVE' else timestamp
+            )
+        )()
 
     # Generate dict of log
     log_dict = {
