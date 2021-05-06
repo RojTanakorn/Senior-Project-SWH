@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 activate.ps1
+runserver.ps1
 text_files/
 user_images/
