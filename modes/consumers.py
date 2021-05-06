@@ -90,7 +90,8 @@ class ModeConsumer(AsyncWebsocketConsumer):
 
             # Hardware ID does not exist
             else:
-                await self.close()
+                await self.accept()
+                await self.close(code=4444)
 
         # If webapp is connecting
         elif self.client_type == 'sw':
@@ -184,17 +185,21 @@ class ModeConsumer(AsyncWebsocketConsumer):
                                 await commons.Notify_clients(self.hardware_id, hardware_payload, webapp_payload)
 
             if not is_accept:
-                await self.close()
+                print('not accept')
+                await self.accept()
+                await self.close(code=4444)
         
         # Not hardware and webapp standard connection
         else:
-            await self.close()
+            await self.accept()
+            await self.close(code=4444)
 
 
     ''' Called when client want to disconnect '''
     async def disconnect(self, close_code):
 
         print('\n\n=============== DISCONNECT PROCESS ================')
+        print('close code:', close_code)
 
         hardware_payload, webapp_payload = None, None
 
@@ -217,17 +222,22 @@ class ModeConsumer(AsyncWebsocketConsumer):
         # If webapp disconnected
         elif self.client_type == 'sw':
             
-            # If disconnect that is not about connection rejection when connected
+            # If disconnect that user logout or close browser
             #   - Send mode_changed payload to hardware as mode 0 stage 0 (hardware stops working)
             #   - Update is_on = False, and unbind hardware
             #   - Update current mode-stage of hardware to be 0
             #   - Send webapp status to hardware which webapp status=False, unbinded employee ID
-            if close_code == None:
+            if close_code in [None, 1001, 1006]:
 
                 await commons.Notify_clients(hardware_id=self.hardware_id, hardware_payload=commons.Payloads.mode_changed_to_hardware(0, 0))
+                
+                updating_user_dict = {'ison': False, 'hardwareid_id': None}
+
+                if close_code != 1006:
+                    updating_user_dict.update({'currentmode': 0, 'currentstage': 0})
 
                 await database_sync_to_async(
-                    lambda: UserData.objects.filter(hardwareid=self.hardware_id).update(ison=False, hardwareid_id=None)
+                    lambda: UserData.objects.filter(hardwareid=self.hardware_id).update(**updating_user_dict)
                 )()
 
                 await database_sync_to_async(
@@ -251,16 +261,14 @@ class ModeConsumer(AsyncWebsocketConsumer):
 
     ''' Called when receive data from WebSocket '''
     async def receive(self, text_data):
-        
-        its_serial_number = self.its_serial_number
 
         # Process hardware payload in Operate function
         if self.client_type == 'hw':
-            await Operate(self.its_serial_number, text_data)
+            await Operate(self.hardware_id, text_data)
 
         # Process mode selection of webapp in Mode_selection_management function
         elif self.client_type == 'sw':
-            await Mode_selection_management(self.its_serial_number, text_data)
+            await Mode_selection_management(self.hardware_id, text_data)
 
 
     ''' Called when the mode want to send payload '''
