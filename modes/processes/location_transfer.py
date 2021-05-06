@@ -4,10 +4,9 @@ from channels.db import database_sync_to_async
 
 
 ''' Function for processing location transfer mode '''
-async def Location_transfer_mode(its_serial_number, payload_json, current_stage):
+async def Location_transfer_mode(hardware_id, payload_json, current_stage):
     
-    # Get only hardware ID's sender and employee ID
-    hardware_id = its_serial_number[2:]
+    # Get employee ID
     employee_id = payload_json['employee_id']
 
     # Process data in stage 2

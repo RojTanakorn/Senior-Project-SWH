@@ -74,7 +74,6 @@ class LogData(models.Model):
     logid = models.AutoField(db_column='LogID', primary_key=True)  # Field name made lowercase.
     logtype = models.CharField(db_column='LogType', max_length=3, blank=True, null=True)  # Field name made lowercase.
     errorfield = models.CharField(db_column='ErrorField', max_length=20, blank=True, null=True)  # Field name made lowercase.
-    correctdata = models.CharField(db_column='CorrectData', max_length=20, blank=True, null=True)  # Field name made lowercase.
     mode = models.ForeignKey('ModeData', models.DO_NOTHING, db_column='Mode', blank=True, null=True)  # Field name made lowercase.
     stage = models.SmallIntegerField(db_column='Stage', blank=True, null=True)  # Field name made lowercase.
     scanpallet = models.CharField(db_column='ScanPallet', max_length=30, blank=True, null=True)  # Field name made lowercase.
@@ -101,13 +100,7 @@ class ModeData(models.Model):
 class OrderData(models.Model):
     ordernumber = models.CharField(db_column='OrderNumber', primary_key=True, max_length=20)  # Field name made lowercase.
     ordereddatetime = models.DateTimeField(db_column='OrderedDateTime', blank=True, null=True)  # Field name made lowercase.
-    invoicenumber = models.CharField(db_column='InvoiceNumber', max_length=20, blank=True, null=True)  # Field name made lowercase.
-    invoicedatetime = models.DateTimeField(db_column='InvoiceDateTime', blank=True, null=True)  # Field name made lowercase.
-    customerid = models.BigIntegerField(db_column='CustomerID', blank=True, null=True)  # Field name made lowercase.
-    customername = models.CharField(db_column='CustomerName', max_length=500, blank=True, null=True)  # Field name made lowercase.
-    customertype = models.CharField(db_column='CustomerType', max_length=6, blank=True, null=True)  # Field name made lowercase.
-    province = models.CharField(db_column='Province', max_length=250, blank=True, null=True)  # Field name made lowercase.
-    salesterritory = models.CharField(db_column='SalesTerritory', max_length=6, blank=True, null=True)  # Field name made lowercase.
+    customerid = models.IntegerField(db_column='CustomerID', blank=True, null=True)  # Field name made lowercase.
     remarks = models.CharField(db_column='Remarks', max_length=1000, blank=True, null=True)  # Field name made lowercase.
     orderstatus = models.CharField(db_column='OrderStatus', max_length=10, blank=True, null=True)  # Field name made lowercase.
     duedate = models.DateField(db_column='DueDate', blank=True, null=True)  # Field name made lowercase.
@@ -122,7 +115,6 @@ class OrderListData(models.Model):
     ordernumber = models.ForeignKey(OrderData, models.DO_NOTHING, db_column='OrderNumber', blank=True, null=True)  # Field name made lowercase.
     itemnumber = models.ForeignKey(ItemData, models.DO_NOTHING, db_column='ItemNumber', blank=True, null=True)  # Field name made lowercase.
     quantity = models.IntegerField(db_column='Quantity', blank=True, null=True)  # Field name made lowercase.
-    weight = models.FloatField(db_column='Weight', blank=True, null=True)  # Field name made lowercase.
     remainpickupquantity = models.IntegerField(db_column='RemainPickupQuantity', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:

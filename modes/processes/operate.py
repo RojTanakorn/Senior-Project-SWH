@@ -7,7 +7,7 @@ from . import mode_selection_processes
 
 
 ''' Function for operating normal payload of mode process '''
-async def Operate(its_serial_number, payload_string):
+async def Operate(hardware_id, payload_string):
     
     # Convert string to json (dict)
     payload_json = json.loads(payload_string)
@@ -19,7 +19,7 @@ async def Operate(its_serial_number, payload_string):
     # Call putaway mode function
     if current_mode == 2:
         await Putaway_mode(
-            its_serial_number,
+            hardware_id,
             payload_json,
             current_stage
         )
@@ -27,7 +27,7 @@ async def Operate(its_serial_number, payload_string):
     # Call pickup mode function
     elif current_mode == 3:
         await Pickup_mode(
-            its_serial_number,
+            hardware_id,
             payload_json,
             current_stage
         )
@@ -35,20 +35,17 @@ async def Operate(its_serial_number, payload_string):
     # Call location transfer mode function
     elif current_mode == 4:
         await Location_transfer_mode(
-            its_serial_number,
+            hardware_id,
             payload_json,
             current_stage
         )
 
 
 ''' Function for Managing mode selection from webapp '''
-async def Mode_selection_management(its_serial_number, payload_string):
+async def Mode_selection_management(hardware_id, payload_string):
 
     # Convert string to json (dict)
     payload_json = json.loads(payload_string)
-
-    # Get hardware ID's sender
-    hardware_id = its_serial_number[2:]
 
     # Get new mode and stage from payload
     new_mode = payload_json['new_mode']

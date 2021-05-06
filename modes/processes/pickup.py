@@ -9,10 +9,9 @@ from db.models import OrderData, OrderListData, PalletData
 ''' **************************************************** '''
 
 ''' Function for processing pickup mode '''
-async def Pickup_mode(its_serial_number, payload_json, current_stage):
+async def Pickup_mode(hardware_id, payload_json, current_stage):
     
-    # Get only hardware ID's sender and employee ID
-    hardware_id = its_serial_number[2:]
+    # Get employee ID
     employee_id = payload_json['employee_id']
 
     # Process data in stage 2
@@ -357,7 +356,7 @@ async def Update_data_after_pickup(scanned_pallet_id, pickup_info):
     # Update pallet status as PICKED
     await commons.Update_pallet_info(
         pallet_id=scanned_pallet_id,
-        update_info_dict={'palletstatus': 'PICKED', 'location': None}
+        update_info_dict={'palletstatus': 'PICKED', 'location': None, 'amountofitem': 0}
     )
 
     # Update pickup status as PICKED
