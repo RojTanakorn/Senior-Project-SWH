@@ -98,7 +98,7 @@ async def Pickup_stage_2(hardware_id, employee_id, payload_json):
             )
 
             # Define new pallet ID to considered pickup ID
-            await Define_new_pallet_to_pickup(pickup_id=pickup_info['pickup_id'])
+            await Define_new_pallet_to_pickup(pickup_info['pickup_id'], pickup_info['item_number'])
 
     # Generate dict of log
     log_dict = {
@@ -162,7 +162,7 @@ async def Pickup_stage_3(hardware_id, employee_id, payload_json):
             await commons.Pallet_rejection_of_pallet_amount(scanned_pallet_id)
 
             # Define new pallet ID to considered pickup ID
-            await Define_new_pallet_to_pickup(pickup_id=pickup_info['pickup_id'])
+            await Define_new_pallet_to_pickup(pickup_info['pickup_id'], pickup_info['item_number'])
 
     # Generate dict of log
     log_dict = {
@@ -247,7 +247,7 @@ async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
     # Check that employee go to correct pallet & location or not
     pickup_info_results = await commons.Get_pickup_info_various_filters(
         filters_dict={'palletid__location':scanned_location, 'pickupstatus':'WAITPICK'},
-        wanted_fields=('pickupid', 'palletid', 'hardwareid')
+        wanted_fields=('pickupid', 'palletid', 'hardwareid', 'palletid__itemnumber')
     )
 
     if len(pickup_info_results) == 0:
@@ -276,7 +276,8 @@ async def Verify_pickup_pallet(scanned_pallet_id, scanned_location, hardware_id)
 
         pickup_info_dict = {
             'pickup_id': pickup_info['pickupid'],
-            'wanted_pallet_id': pickup_info['palletid']
+            'wanted_pallet_id': pickup_info['palletid'],
+            'item_number': pickup_info['palletid__itemnumber']
         }
 
     return verify_pickup_pallet_status, error_type, pickup_info_dict
@@ -411,15 +412,7 @@ async def Check_and_update_order_status(order_number):
 
 
 ''' Function for defining new pallet ID for pickup task when old pallet ID is rejected '''
-async def Define_new_pallet_to_pickup(pickup_id):
-    
-    # Get wanted item number
-    wanted_item_number = (
-        await commons.Get_pickup_info_various_filters(
-            filters_dict={'pickupid': pickup_id},
-            wanted_fields=('palletid__itemnumber',)
-        )
-    )[0]['palletid__itemnumber']
+async def Define_new_pallet_to_pickup(pickup_id, wanted_item_number):
 
     # Find new pallet ID that is the same item number ordered by putaway timestamp
     new_pallet_id = await database_sync_to_async(

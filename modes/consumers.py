@@ -1,4 +1,3 @@
-  
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .processes.operate import Operate, Mode_selection_management
 from django.core.cache import cache

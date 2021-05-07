@@ -56,12 +56,12 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
     scanned_location = payload_json['location']
 
     # Verify pallet and location that is ready to move or not
-    verify_current_location, error_type, location_transfer_id, location_transfer_info = await Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location)
+    verify_source_location_status, error_type, location_transfer_id, location_transfer_info = await Verify_source_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location)
 
     # Get now local datetime
     timestamp = commons.Get_now_local_datetime()
 
-    if verify_current_location:
+    if verify_source_location_status:
         await commons.Update_pallet_info(
             pallet_id=scanned_pallet_id,
             update_info_dict={'palletstatus': 'MOVING'}
@@ -106,7 +106,7 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
 
     # Generate dict of log
     log_dict = {
-        'logtype': 'GEN' if verify_current_location else 'ERR',
+        'logtype': 'GEN' if verify_source_location_status else 'ERR',
         'errorfield': error_type,
         'mode_id': 4,
         'stage': 2,
@@ -119,7 +119,7 @@ async def Location_transfer_stage_2(hardware_id, employee_id, payload_json):
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m4s2(
-        status=verify_current_location,
+        status=verify_source_location_status,
         new_mode=new_mode,
         new_stage=new_stage,
         error_type=error_type,
@@ -140,16 +140,16 @@ async def Location_transfer_stage_3(hardware_id, employee_id, payload_json):
     scanned_pallet_id = payload_json['pallet_id']
     scanned_location = payload_json['location']
 
-    verify_new_location, error_type = await Verify_new_location(hardware_id, scanned_pallet_id, scanned_location)
+    verify_destination_location_status, error_type = await Verify_destination_location(hardware_id, scanned_pallet_id, scanned_location)
 
     # Pallet can be placed at new location
-    if verify_new_location:
+    if verify_destination_location_status:
         new_mode = 4
         new_stage = 4
 
     # Generate dict of log
     log_dict = {
-        'logtype': 'GEN' if verify_new_location else 'ERR',
+        'logtype': 'GEN' if verify_destination_location_status else 'ERR',
         'errorfield': error_type,
         'mode_id': 4,
         'stage': 3,
@@ -161,7 +161,7 @@ async def Location_transfer_stage_3(hardware_id, employee_id, payload_json):
 
     # Generate payload for sending to clients (hardware and webapp)
     hardware_payload, webapp_payload = commons.Payloads.m4s3(
-        status=verify_new_location,
+        status=verify_destination_location_status,
         new_mode=new_mode,
         new_stage=new_stage,
         error_type=error_type,
@@ -271,10 +271,10 @@ async def Location_transfer_stage_4(hardware_id, employee_id, payload_json):
 ''' ********************************************************** '''
 
 ''' Function for verifying current location '''
-async def Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location):
+async def Verify_source_location(hardware_id, scanned_pallet_id, scanned_pallet_weight, scanned_location):
     
     # Initialize verify status and error type
-    verify_current_location = False
+    verify_source_location = False
     error_type = None
     location_transfer_id = None
     location_transfer_info = None
@@ -315,19 +315,19 @@ async def Verify_current_location(hardware_id, scanned_pallet_id, scanned_pallet
             min_weight, max_weight = commons.Range_expected_weight(location_transfer_result['palletid__palletweight'])
 
             if min_weight <= scanned_pallet_weight <= max_weight:
-                verify_current_location = True
+                verify_source_location = True
 
             else:
                 error_type = 'AMOUNT'
 
-    return verify_current_location, error_type, location_transfer_id, location_transfer_info
+    return verify_source_location, error_type, location_transfer_id, location_transfer_info
 
 
 ''' Function for verifying new location '''
-async def Verify_new_location(hardware_id, scanned_pallet_id, scanned_location):
+async def Verify_destination_location(hardware_id, scanned_pallet_id, scanned_location):
     
     # Initialize verify status and error type
-    verify_new_location = False
+    verify_destination_location = False
     error_type = None
 
     location_transfer_result = await database_sync_to_async(
@@ -349,6 +349,6 @@ async def Verify_new_location(hardware_id, scanned_pallet_id, scanned_location):
     else:
 
         # Location is ready to place
-        verify_new_location = True
+        verify_destination_location = True
 
-    return verify_new_location, error_type
+    return verify_destination_location, error_type

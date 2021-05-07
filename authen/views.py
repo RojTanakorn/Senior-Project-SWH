@@ -74,7 +74,7 @@ def Create_token(user):
 
 
 ''' Class for authenticating expiring token '''
-class ExpiringTokenAuthentication(TokenAuthentication):
+class ExpiringTokenAuthenticationClass(TokenAuthentication):
     def authenticate_credentials(self, key):
 
         # Try to get token and raise the exception when token does not exist
@@ -95,10 +95,10 @@ class ExpiringTokenAuthentication(TokenAuthentication):
 
 
 ''' Class for checking hardware ID and token, and return ticket if verified '''
-class HardwareAndTicketAuthentication(APIView):
+class UserTokenAuthentication(APIView):
 
     # Define authentication class as ExpiringTokenAuthentication, and permission class only authenticated client
-    authentication_classes = [ExpiringTokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthenticationClass]
     permission_classes = [permissions.IsAuthenticated]
 
     # POST method process
