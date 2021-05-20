@@ -1,4 +1,3 @@
-import json
 from .putaway import Putaway_mode
 from .pickup import Pickup_mode
 from .location_transfer import Location_transfer_mode
@@ -7,10 +6,7 @@ from . import mode_selection_processes
 
 
 ''' Function for operating normal payload of mode process '''
-async def Operate(hardware_id, payload_string):
-    
-    # Convert string to json (dict)
-    payload_json = json.loads(payload_string)
+async def Operate(hardware_id, payload_json):
 
     # Get current mode from payload
     current_mode = payload_json['mode']
@@ -42,10 +38,7 @@ async def Operate(hardware_id, payload_string):
 
 
 ''' Function for Managing mode selection from webapp '''
-async def Mode_selection_management(hardware_id, payload_string):
-
-    # Convert string to json (dict)
-    payload_json = json.loads(payload_string)
+async def Mode_selection_management(hardware_id, payload_json):
 
     # Get new mode and stage from payload
     new_mode = payload_json['new_mode']
