@@ -6,45 +6,48 @@ from . import mode_selection_processes
 
 
 ''' Function for operating normal payload of mode process '''
-async def Operate(hardware_id, payload_json):
 
-    # Get current mode from payload
+
+async def Operate(hardware_id, payload_json):
     current_mode = payload_json['mode']
     current_stage = payload_json['stage']
-    
-    # Call putaway mode function
+
     if current_mode == 2:
-        await Putaway_mode(
-            hardware_id,
-            payload_json,
-            current_stage
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_mode(
+            hardware_id, payload_json, current_stage
         )
 
-    # Call pickup mode function
     elif current_mode == 3:
-        await Pickup_mode(
-            hardware_id,
-            payload_json,
-            current_stage
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_mode(
+            hardware_id, payload_json, current_stage
         )
 
-    # Call location transfer mode function
     elif current_mode == 4:
-        await Location_transfer_mode(
-            hardware_id,
-            payload_json,
-            current_stage
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Location_transfer_mode(
+            hardware_id, payload_json, current_stage
         )
+
+    await Processes_after_operate(
+        log_dict, hardware_id, hardware_payload, webapp_payload, new_mode, new_stage
+    )
+
+
+async def Processes_after_operate(
+    log_dict, hardware_id, hardware_payload, webapp_payload, new_mode, new_stage
+):
+    await commons.Store_log(log_dict)
+
+    await commons.Notify_clients(hardware_id, hardware_payload, webapp_payload)
+
+    if new_mode is not None:
+        await commons.Update_current_mode_stage(hardware_id, new_mode, new_stage)
 
 
 ''' Function for Managing mode selection from webapp '''
-async def Mode_selection_management(hardware_id, payload_json):
 
-    # Get new mode and stage from payload
+async def Mode_selection_management(hardware_id, payload_json):
     new_mode = payload_json['new_mode']
     new_stage = payload_json['new_stage']
-
-    # Define hardware payload (as same as received payload from webapp)
     hardware_payload = commons.Payloads.mode_changed_to_hardware(new_mode, new_stage)
 
     # Call function according to new mode
@@ -60,17 +63,14 @@ async def Mode_selection_management(hardware_id, payload_json):
     elif new_mode == 4:
         webapp_payload = await mode_selection_processes.select_mode_4(hardware_id)
 
-    # Update current mode and stage of specific hardware ID on HARDWARE_DATA
-    await commons.Update_current_mode_stage(
-        hardware_id=hardware_id,
-        mode=new_mode,
-        stage=new_stage
-    )
-
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
+    await Processes_after_mode_selection(
+        hardware_id, hardware_payload, webapp_payload, new_mode, new_stage
     )
     
+
+async def Processes_after_mode_selection(
+    hardware_id, hardware_payload, webapp_payload, new_mode, new_stage
+):
+
+    await commons.Notify_clients(hardware_id, hardware_payload, webapp_payload)
+    await commons.Update_current_mode_stage(hardware_id, new_mode, new_stage)

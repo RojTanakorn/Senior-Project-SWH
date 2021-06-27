@@ -268,13 +268,14 @@ class ModeConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
 
         payload_json = json.loads(text_data)
+        print(payload_json)
 
         # Process hardware payload in Operate function
         if self.client_type == 'hw':
             await Operate(self.hardware_id, payload_json)
 
         # Process mode selection of webapp in Mode_selection_management function
-        elif self.client_type == 'sw':
+        if self.client_type == 'sw':
             await Mode_selection_management(self.hardware_id, payload_json)
 
 

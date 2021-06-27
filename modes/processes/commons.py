@@ -9,14 +9,17 @@ import hashlib
 
 
 ''' Constants '''
-EMPTY_PALLET_WEIGHT = 0.134
+EMPTY_PALLET_WEIGHT = 0.1355
 PALLET_WEIGHT_ERROR = 0.1
 
 
 ''' Function for calculating range of expected weight '''
-def Range_expected_weight(expected_weight):
-    min_weight = (1 - PALLET_WEIGHT_ERROR) * expected_weight
-    max_weight = (1 + PALLET_WEIGHT_ERROR) * expected_weight
+def Range_expected_weight(expected_weight, weight_per_piece):
+    # min_weight = (1 - PALLET_WEIGHT_ERROR) * expected_weight
+    # max_weight = (1 + PALLET_WEIGHT_ERROR) * expected_weight
+
+    min_weight = expected_weight - (0.7 * weight_per_piece)
+    max_weight = expected_weight + (0.7 * weight_per_piece)
 
     return min_weight, max_weight
 
@@ -577,6 +580,7 @@ class Payloads():
     # Mode 5 (connect / disconnect)
     def m5_to_hardware(status, employee_id=None):
         return {
+            "information_type": 'mode',
             "mode": 5,
             "employee_id": employee_id,
             "webapp_status": status

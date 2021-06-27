@@ -1,5 +1,5 @@
-from django.http import HttpResponse, JsonResponse
-from db.models import OrderData, OrderListData, PickupData, ItemData, PalletData, HardwareData, LayoutData, LocationTransferData, UserData
+from django.http import HttpResponse
+from db.models import HardwareData, ItemData, OrderData, OrderListData, PickupData, PalletData, LayoutData, LocationTransferData, UserData
 from modes.processes import commons
 from asgiref.sync import async_to_sync
 import json
@@ -339,3 +339,90 @@ class Location_transfer_management(APIView):
                 )
 
         return Response({'error': error_messages})
+
+
+def clear_data(request):
+    
+    # ==== Reset data in all tables ====
+    initial_pallet_list = []
+    PalletData.objects.all().delete()
+    for i in range(1, 25):
+        initial_pallet_list.append(
+            PalletData(
+                palletid='A00000' + str(i).zfill(2),
+                palletstatus='NOITEM'
+            )
+        )
+
+    PalletData.objects.bulk_create(initial_pallet_list)
+    LayoutData.objects.all().update(locationstatus='BLANK')
+    OrderData.objects.all().delete()
+    OrderListData.objects.all().delete()
+    PickupData.objects.all().delete()
+    LocationTransferData.objects.all().delete()
+    HardwareData.objects.all().update(currentmode=0, currentstage=0, isactive=False)
+    UserData.objects.all().update(currentmode=0, currentstage=0, ison=False, hardwareid=None)
+
+    return HttpResponse("Done.")
+
+
+def register_item(request):
+    pallet_id = request.GET.get('pallet_id', '')
+    item_number = request.GET.get('item_number', '')
+
+    PalletData.objects.filter(palletid=pallet_id).update(itemnumber=item_number, palletstatus='REGISTER')
+
+    return HttpResponse("Done.")
+
+
+def initial_pallet(request):
+    # pallet_id = request.GET.get('pallet_id', '')
+    # item_number = request.GET.get('item_number', '')
+    # location = request.GET.get('location', '')
+
+    # ..
+    pallets = ['02', '03', '04', '12', '19', '20']
+    item_numbers = ['00002', '00002', '00001', '00003', '00001', '00003']
+    locations = ['A0105', 'A0203', 'A0102', 'A0302', 'A0103', 'A0303']
+
+    item_infos = ItemData.objects.filter(itemnumber__in=list(set(item_numbers)))
+
+    for i in range(len(pallets)):
+
+        for item in item_infos:
+            if item.itemnumber == item_numbers[i]:
+                wanted_item = item
+
+        PalletData.objects.filter(palletid='A00000' + pallets[i]).update(
+            itemnumber=item_numbers[i],
+            amountofitem=wanted_item.amountperpallet,
+            amountavailable=wanted_item.amountperpallet,
+            palletweight=float(commons.EMPTY_PALLET_WEIGHT + (wanted_item.amountperpallet * wanted_item.weightperpiece)),
+            palletstatus='GENERAL',
+            location=locations[i],
+            putawaytimestamp=commons.Get_now_local_datetime()
+        )
+
+        LayoutData.objects.filter(location=locations[i]).update(locationstatus='BUSY')
+
+    # pallet_info = PalletData.objects.filter(palletid=pallet_id).first()
+    # is_location_blank = LayoutData.objects.filter(location=location, locationstatus='BLANK').exists()
+    # item_info = ItemData.objects.filter(itemnumber=item_number).first()
+
+    # if pallet_info!=None and is_location_blank and item_info!=None:
+    #     if pallet_info.palletstatus != 'GENERAL':
+    #         PalletData.objects.filter(palletid=pallet_id).update(
+    #             itemnumber=item_number,
+    #             amountofitem=item_info.amountperpallet,
+    #             amountavailable=item_info.amountperpallet,
+    #             palletweight=float(commons.EMPTY_PALLET_WEIGHT + (item_info.amountperpallet * item_info.weightperpiece)),
+    #             palletstatus='GENERAL',
+    #             location=location,
+    #             putawaytimestamp=commons.Get_now_local_datetime()
+    #         )
+
+    #         LayoutData.objects.filter(location=location).update(locationstatus='BUSY')
+
+    return HttpResponse('Done.')
+
+    # return HttpResponse('Error.')

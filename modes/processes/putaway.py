@@ -8,41 +8,48 @@ from db.models import LayoutData, ItemData
 ''' **************************************************** '''
 
 ''' Function for processing putaway mode '''
+
 async def Putaway_mode(hardware_id, payload_json, current_stage):
-    
-    # Get employee ID
     employee_id = payload_json['employee_id']
 
     # Process data in stage 1
     if current_stage == 1:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_1(employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_1(
+            employee_id, payload_json
+        )
 
     # Process data in stage 2
     elif current_stage == 2:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_2(employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_2(
+            employee_id, payload_json
+        )
 
     # Process data in stage 3
     elif current_stage == 3:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_3(employee_id, payload_json)
-
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict=log_dict
-    )
-
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
-
-    if new_mode is not None:
-        await commons.Update_current_mode_stage(
-            hardware_id=hardware_id,
-            mode=new_mode,
-            stage=new_stage
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Putaway_stage_3(
+            employee_id, payload_json
         )
+
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
+
+    # # Store log into LOG_DATA
+    # await commons.Store_log(
+    #     create_log_dict=log_dict
+    # )
+
+    # # Send payload to clients
+    # await commons.Notify_clients(
+    #     hardware_id=hardware_id,
+    #     hardware_payload=hardware_payload,
+    #     webapp_payload=webapp_payload
+    # )
+
+    # if new_mode is not None:
+    #     await commons.Update_current_mode_stage(
+    #         hardware_id=hardware_id,
+    #         mode=new_mode,
+    #         stage=new_stage
+    #     )
 
 
 ''' ****************************************************** '''
@@ -346,7 +353,7 @@ def Calculate_expected_weight(weight_per_piece, amount_per_pallet):
     expected_weight = commons.EMPTY_PALLET_WEIGHT + (weight_per_piece * amount_per_pallet)
 
     # Min and max of expected weight
-    min_weight, max_weight = commons.Range_expected_weight(expected_weight)
+    min_weight, max_weight = commons.Range_expected_weight(expected_weight, weight_per_piece)
 
     return min_weight, max_weight
 
