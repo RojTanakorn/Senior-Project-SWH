@@ -1,10 +1,14 @@
-from django.http import HttpResponse, JsonResponse
-from db.models import OrderData, OrderListData, PickupData, ItemData, PalletData, HardwareData, LayoutData, LocationTransferData, UserData
+from django.http import HttpResponse
+from db.models import HardwareData, ItemData, OrderData, OrderListData, PickupData, PalletData, LayoutData, LocationTransferData, UserData
 from modes.processes import commons
 from asgiref.sync import async_to_sync
 import json
 import math
 from django.db.models import Count
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from authen.views import ExpiringTokenAuthenticationClass
+from rest_framework import permissions
 
 
 ''' ***************************************************** '''
@@ -218,113 +222,207 @@ def Notify_all_pickup_coming():
         )
 
 
-''' Function of Location Transfer Management '''
-def Location_transfer_management(request):
+class Location_transfer_management(APIView):
+    
+    authentication_classes = [ExpiringTokenAuthenticationClass]
+    permission_classes = [permissions.IsAdminUser]
 
-    # Extract data to source location and destination location from params
-    source_location = request.GET.get('source', '')
-    destination_location = request.GET.get('destination', '')
+    def get(self, request):
+         # Extract data to source location and destination location from params
+        source_location = request.GET.get('source', '')
+        destination_location = request.GET.get('destination', '')
 
-    # Initialize list of error
-    error_messages = []
+        # Initialize list of error
+        error_messages = []
 
 
-    # ======= Verify source location =======
-    # Get location status of source location
-    source_location_status = LayoutData.objects.filter(location=source_location).values_list('locationstatus', flat=True).first()
+        # ======= Verify source location =======
+        # Get location status of source location
+        source_location_status = LayoutData.objects.filter(location=source_location).values_list('locationstatus', flat=True).first()
 
-    # Check if source location doesn't exist
-    if source_location_status is None:
-        error_messages.append('ไม่มีชั้นวางต้นทางหมายเลขนี้')
+        # Check if source location doesn't exist
+        if source_location_status is None:
+            error_messages.append('ไม่มีชั้นวางต้นทางหมายเลขนี้')
 
-    # Check if source location doesn't place pallet
-    elif source_location_status != 'BUSY':
-        error_messages.append(f'ชั้นวางต้นทางไม่พร้อมสำหรับให้เคลื่อนย้าย เนื่องจากชั้นวางต้นทางมีสถานะ [{source_location_status}]')
-
-    else:
-
-        # Get pallet id and pallet status of pallet stored in source location
-        pallet_info = PalletData.objects.filter(location=source_location).values_list('palletid', 'palletstatus').first()
-
-        # Check if no pallet is stored in source location
-        if pallet_info is None:
-            error_messages.append('ไม่มีพาเลทวางอยู่บนชั้นวางต้นทางในฐานข้อมูล')
+        # Check if source location doesn't place pallet
+        elif source_location_status != 'BUSY':
+            error_messages.append(f'ชั้นวางต้นทางไม่พร้อมสำหรับให้เคลื่อนย้าย เนื่องจากชั้นวางต้นทางมีสถานะ [{source_location_status}]')
 
         else:
-            pallet_id, pallet_status = pallet_info
+
+            # Get pallet id and pallet status of pallet stored in source location
+            pallet_info = PalletData.objects.filter(location=source_location).values_list('palletid', 'palletstatus').first()
+
+            # Check if no pallet is stored in source location
+            if pallet_info is None:
+                error_messages.append('ไม่มีพาเลทวางอยู่บนชั้นวางต้นทางในฐานข้อมูล')
+
+            else:
+                pallet_id, pallet_status = pallet_info
+                
+                # Check if pallet is not ready to move
+                if pallet_status != 'GENERAL':
+                    error_messages.append(f'พาเลทที่วางอยู่บนชั้นวางต้นทางไม่สามารถเคลื่อนย้ายได้ เนื่องจากพาเลทมีสถานะ [{pallet_status}]')
+
+
+        # ======= Verify destination location =======
+        # Get location status of destination location
+        destination_location_status = LayoutData.objects.filter(location=destination_location).values_list('locationstatus', flat=True).first()
+
+        # Check if destination location doesn't exist
+        if destination_location_status is None:
+            error_messages.append('ไม่มีชั้นวางปลายทางหมายเลขนี้')
+
+        # Check if source location is not BLANK
+        elif destination_location_status != 'BLANK':
+            error_messages.append(f'ชั้นวางปลายทางไม่พร้อมสำหรับวางพาเลท เนื่องจากชั้นวางปลายทางมีสถานะ [{destination_location_status}]')
+
+        else:
+
+            # **check for sure that no pallet stored in destination location
+            is_pallet_stored = PalletData.objects.filter(location=destination_location).exists()
+
+            if is_pallet_stored:
+                error_messages.append('ชั้นวางปลายทางไม่พร้อมสำหรับวางพาเลท เนื่องจากชั้นวางปลายทางมีพาเลทวางอยู่ในฐานข้อมูล')
+
+
+        # ======= Handle order of location transfer if there is no error =======
+        if len(error_messages) == 0:
+
+            # Get all active hardware ID
+            active_hardware_ids = list(UserData.objects.filter(ison=True, hardwareid__isnull=False).values_list('hardwareid', flat=True))
+
+            if len(active_hardware_ids) == 0:
+                error_messages.append('ไม่มีฮาร์ดแวร์ที่ทำงานอยู่ ณ ขณะนี้')
+
+            else:
             
-            # Check if pallet is not ready to move
-            if pallet_status != 'GENERAL':
-                error_messages.append(f'พาเลทที่วางอยู่บนชั้นวางต้นทางไม่สามารถเคลื่อนย้ายได้ เนื่องจากพาเลทมีสถานะ [{pallet_status}]')
+                # Get count of each hardware's tasks today
+                today_hardware_tasks = list(LocationTransferData.objects.filter(
+                    registertimestamp__date=commons.Get_now_local_datetime().date(),
+                    hardwareid__in=active_hardware_ids
+                ).values('hardwareid').annotate(today_task=Count('hardwareid')).order_by('today_task'))
+
+                # Check if some hardwares are not assigned to do location transfer task today
+                if len(today_hardware_tasks) < len(active_hardware_ids):
+
+                    # Get hardware IDs that have already been assigned today
+                    today_hardwares = set([task['hardwareid'] for task in today_hardware_tasks])
+
+                    # Assign a task to the first hardware ID that is not assigned today
+                    assigned_hardware_id = list(set(active_hardware_ids).difference(today_hardwares))[0]
+
+                else:
+
+                    # Assign a task to the first hardware ID who has the lowest number of tasks compared to other hardwares
+                    assigned_hardware_id = today_hardware_tasks[0]['hardwareid']
+
+                # Store location transfer order into LOCATION_TRANSFER_DATA
+                LocationTransferData.objects.create(
+                    palletid_id=pallet_id,
+                    sourcelocation_id=source_location,
+                    destinationlocation_id=destination_location,
+                    locationtransferstatus='WAITMOVE',
+                    registertimestamp=commons.Get_now_local_datetime(),
+                    hardwareid_id=assigned_hardware_id
+                )
+
+                # Book destination location for location transfer on LAYOUT_DATA
+                LayoutData.objects.filter(location=destination_location).update(locationstatus='BOOK')
+
+                # Change pallet status to be WAITMOVE on PALLET_DATA
+                PalletData.objects.filter(palletid=pallet_id).update(palletstatus='WAITMOVE')
+
+                # Send payload to webapp for notifying coming task
+                async_to_sync(commons.Notify_clients)(
+                    hardware_id=assigned_hardware_id, webapp_payload=commons.Payloads.m4s1()
+                )
+
+        return Response({'error': error_messages})
 
 
-    # ======= Verify destination location =======
-    # Get location status of destination location
-    destination_location_status = LayoutData.objects.filter(location=destination_location).values_list('locationstatus', flat=True).first()
-
-    # Check if destination location doesn't exist
-    if destination_location_status is None:
-        error_messages.append('ไม่มีชั้นวางปลายทางหมายเลขนี้')
-
-    # Check if source location is not BLANK
-    elif destination_location_status != 'BLANK':
-        error_messages.append(f'ชั้นวางปลายทางไม่พร้อมสำหรับวางพาเลท เนื่องจากชั้นวางปลายทางมีสถานะ [{destination_location_status}]')
-
-    else:
-
-        # **check for sure that no pallet stored in destination location
-        is_pallet_stored = PalletData.objects.filter(location=destination_location).exists()
-
-        if is_pallet_stored:
-            error_messages.append('ชั้นวางปลายทางไม่พร้อมสำหรับวางพาเลท เนื่องจากชั้นวางปลายทางมีพาเลทวางอยู่ในฐานข้อมูล')
-
-
-    # ======= Handle order of location transfer if there is no error =======
-    if len(error_messages) == 0:
-
-        # Get all active hardware ID
-        active_hardware_ids = list(UserData.objects.filter(ison=True, hardwareid__isnull=False).values_list('hardwareid', flat=True))
-        
-        # Get count of each hardware's tasks today
-        today_hardware_tasks = list(LocationTransferData.objects.filter(
-            registertimestamp__date=commons.Get_now_local_datetime().date(),
-            hardwareid__in=active_hardware_ids
-        ).values('hardwareid').annotate(today_task=Count('hardwareid')).order_by('today_task'))
-
-        # Check if some hardwares are not assigned to do location transfer task today
-        if len(today_hardware_tasks) < len(active_hardware_ids):
-
-            # Get hardware IDs that have already been assigned today
-            today_hardwares = set([task['hardwareid'] for task in today_hardware_tasks])
-
-            # Assign a task to the first hardware ID that is not assigned today
-            assigned_hardware_id = list(set(active_hardware_ids).difference(today_hardwares))[0]
-
-        else:
-
-            # Assign a task to the first hardware ID who has the lowest number of tasks compared to other hardwares
-            assigned_hardware_id = today_hardware_tasks[0]['hardwareid']
-
-        # Store location transfer order into LOCATION_TRANSFER_DATA
-        LocationTransferData.objects.create(
-            palletid_id=pallet_id,
-            sourcelocation_id=source_location,
-            destinationlocation_id=destination_location,
-            locationtransferstatus='WAITMOVE',
-            registertimestamp=commons.Get_now_local_datetime(),
-            hardwareid_id=assigned_hardware_id
+def clear_data(request):
+    
+    # ==== Reset data in all tables ====
+    initial_pallet_list = []
+    PalletData.objects.all().delete()
+    for i in range(1, 25):
+        initial_pallet_list.append(
+            PalletData(
+                palletid='A00000' + str(i).zfill(2),
+                palletstatus='NOITEM'
+            )
         )
 
-        # Book destination location for location transfer on LAYOUT_DATA
-        LayoutData.objects.filter(location=destination_location).update(locationstatus='BOOK')
+    PalletData.objects.bulk_create(initial_pallet_list)
+    LayoutData.objects.all().update(locationstatus='BLANK')
+    OrderData.objects.all().delete()
+    OrderListData.objects.all().delete()
+    PickupData.objects.all().delete()
+    LocationTransferData.objects.all().delete()
+    HardwareData.objects.all().update(currentmode=0, currentstage=0, isactive=False)
+    UserData.objects.all().update(currentmode=0, currentstage=0, ison=False, hardwareid=None)
 
-        # Change pallet status to be WAITMOVE on PALLET_DATA
-        PalletData.objects.filter(palletid=pallet_id).update(palletstatus='WAITMOVE')
+    return HttpResponse("Done.")
 
-        # Send payload to webapp for notifying coming task
-        async_to_sync(commons.Notify_clients)(
-            hardware_id=assigned_hardware_id, webapp_payload=commons.Payloads.m4s1()
+
+def register_item(request):
+    pallet_id = request.GET.get('pallet_id', '')
+    item_number = request.GET.get('item_number', '')
+
+    PalletData.objects.filter(palletid=pallet_id).update(itemnumber=item_number, palletstatus='REGISTER')
+
+    return HttpResponse("Done.")
+
+
+def initial_pallet(request):
+    # pallet_id = request.GET.get('pallet_id', '')
+    # item_number = request.GET.get('item_number', '')
+    # location = request.GET.get('location', '')
+
+    # ..
+    pallets = ['02', '03', '04', '12', '19', '20']
+    item_numbers = ['00002', '00002', '00001', '00003', '00001', '00003']
+    locations = ['A0105', 'A0203', 'A0102', 'A0302', 'A0103', 'A0303']
+
+    item_infos = ItemData.objects.filter(itemnumber__in=list(set(item_numbers)))
+
+    for i in range(len(pallets)):
+
+        for item in item_infos:
+            if item.itemnumber == item_numbers[i]:
+                wanted_item = item
+
+        PalletData.objects.filter(palletid='A00000' + pallets[i]).update(
+            itemnumber=item_numbers[i],
+            amountofitem=wanted_item.amountperpallet,
+            amountavailable=wanted_item.amountperpallet,
+            palletweight=float(commons.EMPTY_PALLET_WEIGHT + (wanted_item.amountperpallet * wanted_item.weightperpiece)),
+            palletstatus='GENERAL',
+            location=locations[i],
+            putawaytimestamp=commons.Get_now_local_datetime()
         )
 
+        LayoutData.objects.filter(location=locations[i]).update(locationstatus='BUSY')
 
-    return JsonResponse({'error': error_messages})
+    # pallet_info = PalletData.objects.filter(palletid=pallet_id).first()
+    # is_location_blank = LayoutData.objects.filter(location=location, locationstatus='BLANK').exists()
+    # item_info = ItemData.objects.filter(itemnumber=item_number).first()
+
+    # if pallet_info!=None and is_location_blank and item_info!=None:
+    #     if pallet_info.palletstatus != 'GENERAL':
+    #         PalletData.objects.filter(palletid=pallet_id).update(
+    #             itemnumber=item_number,
+    #             amountofitem=item_info.amountperpallet,
+    #             amountavailable=item_info.amountperpallet,
+    #             palletweight=float(commons.EMPTY_PALLET_WEIGHT + (item_info.amountperpallet * item_info.weightperpiece)),
+    #             palletstatus='GENERAL',
+    #             location=location,
+    #             putawaytimestamp=commons.Get_now_local_datetime()
+    #         )
+
+    #         LayoutData.objects.filter(location=location).update(locationstatus='BUSY')
+
+    return HttpResponse('Done.')
+
+    # return HttpResponse('Error.')

@@ -21,21 +21,23 @@ async def Location_transfer_mode(hardware_id, payload_json, current_stage):
     elif current_stage == 4:
         log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Location_transfer_stage_4(hardware_id, employee_id, payload_json)
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict=log_dict
-    )
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    # # Store log into LOG_DATA
+    # await commons.Store_log(
+    #     create_log_dict=log_dict
+    # )
 
-    # Update current mode and stage in database
-    if new_mode is not None:
-        await commons.Update_current_mode_stage(hardware_id=hardware_id, mode=new_mode, stage=new_stage)
+    # # Send payload to clients
+    # await commons.Notify_clients(
+    #     hardware_id=hardware_id,
+    #     hardware_payload=hardware_payload,
+    #     webapp_payload=webapp_payload
+    # )
+
+    # # Update current mode and stage in database
+    # if new_mode is not None:
+    #     await commons.Update_current_mode_stage(hardware_id=hardware_id, mode=new_mode, stage=new_stage)
 
 
 ''' ****************************************************** '''
@@ -282,7 +284,7 @@ async def Verify_source_location(hardware_id, scanned_pallet_id, scanned_pallet_
 
     location_transfer_result = await database_sync_to_async(
         lambda: LocationTransferData.objects.filter(sourcelocation=scanned_location).values(
-            'locationtransferid', 'palletid', 'palletid__palletweight', 'destinationlocation', 'locationtransferstatus', 'hardwareid'
+            'locationtransferid', 'palletid', 'palletid__palletweight', 'destinationlocation', 'locationtransferstatus', 'hardwareid', 'palletid__itemnumber__weightperpiece'
         ).order_by('locationtransferid').last()
     )()
 
@@ -312,7 +314,7 @@ async def Verify_source_location(hardware_id, scanned_pallet_id, scanned_pallet_
 
         else:
             # Get main-max of expected weight
-            min_weight, max_weight = commons.Range_expected_weight(location_transfer_result['palletid__palletweight'])
+            min_weight, max_weight = commons.Range_expected_weight(location_transfer_result['palletid__palletweight'], location_transfer_result['palletid__itemnumber__weightperpiece'])
 
             if min_weight <= scanned_pallet_weight <= max_weight:
                 verify_source_location = True

@@ -3,22 +3,20 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import authentication, permissions
+from rest_framework import permissions
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import exceptions
-from django.contrib.auth.models import User
 from modes.processes import commons
 from db.models import HardwareData, UserData
 import hashlib
 import os
 from django.core.cache import cache
-from django.http.response import HttpResponse
-from PIL import Image
 from django.conf import settings
+import base64
 
 
 ''' Class for authenticating username and password '''
-class ObtainExpiringAuthToken(ObtainAuthToken):
+class UserLogin(ObtainAuthToken):
     def post(self, request, *args, **kwargs):
 
         # Get serializer of request data
@@ -54,6 +52,14 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
                 # Delete existing token, create a new one and store i
                 token.delete()
                 token = Create_token(user)
+
+            print('\n\n')
+            print('========= Login =========')
+            print('Token:', token.key)
+            print('User ID:', user.pk)
+            print('Employee name:', user.first_name + ' ' + user.last_name)
+            print('Is superuser:', user.is_superuser)
+            print('\n\n')
 
             # Return token, employee ID, and username
             return Response({
@@ -95,7 +101,7 @@ class ExpiringTokenAuthenticationClass(TokenAuthentication):
 
 
 ''' Class for checking hardware ID and token, and return ticket if verified '''
-class UserTokenAuthentication(APIView):
+class VerifyHardwareAndGetTicket(APIView):
 
     # Define authentication class as ExpiringTokenAuthentication, and permission class only authenticated client
     authentication_classes = [ExpiringTokenAuthenticationClass]
@@ -103,6 +109,8 @@ class UserTokenAuthentication(APIView):
 
     # POST method process
     def post(self, request, format=None):
+
+        print(request.data)
         
         # Try to get gardware object from sent hardware ID
         try:
@@ -141,6 +149,13 @@ class UserTokenAuthentication(APIView):
 
             # Store hashed ticket into CACHE
             cache.set(request.META['REMOTE_ADDR'], {'user_id': request.user.id, 'hashed_ticket': hashed_ticket})
+
+        print('\n\n')
+        print('========= Check hardware and get ticket =========')
+        print('Hardware ID:', hardware.hardwareid)
+        print('Is hardware ready:', is_ready)
+        print('Ticket (unhashed):', unhashed_ticket)
+        print('\n\n')
         
         # Return response
         return Response({
@@ -153,20 +168,20 @@ class UserTokenAuthentication(APIView):
 ''' Class for providing user image '''
 class GetUserImage(APIView):
     
-    authentication_classes = [ExpiringTokenAuthentication]
+    authentication_classes = [ExpiringTokenAuthenticationClass]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, format=None):
 
         user = UserData.objects.filter(userid=request.user.id).values().first()
-        response = HttpResponse(content_type="image/jpeg")
 
         user_image_path = str(user['userimagepath'] or '')
 
         try:
-            img = Image.open(settings.BASE_DIR + '/' + user_image_path)
+            with open(settings.BASE_DIR + '/' + user_image_path, "rb") as image_file:
+                base64_user_image = base64.b64encode(image_file.read())
         except:
-            img = Image.open(settings.BASE_DIR + '/user_images/user_default.jpg')
+            with open(settings.BASE_DIR + '/user_images/user_default.jpg', "rb") as image_file:
+                base64_user_image = base64.b64encode(image_file.read())
 
-        img.save(response, "JPEG")
-        return response
+        return Response({'user_image': base64_user_image})

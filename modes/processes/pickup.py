@@ -9,38 +9,45 @@ from db.models import OrderData, OrderListData, PalletData
 ''' **************************************************** '''
 
 ''' Function for processing pickup mode '''
+
 async def Pickup_mode(hardware_id, payload_json, current_stage):
-    
-    # Get employee ID
     employee_id = payload_json['employee_id']
 
     # Process data in stage 2
     if current_stage == 2:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_2(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_2(
+            hardware_id, employee_id, payload_json
+        )
 
     # Process data in stage 3
     elif current_stage == 3:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_3(hardware_id, employee_id, payload_json)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_3(
+            hardware_id, employee_id, payload_json
+        )
 
     # Process data in stage 4
     elif current_stage == 4:
-        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_4(hardware_id, employee_id)
+        log_dict, hardware_payload, webapp_payload, new_mode, new_stage = await Pickup_stage_4(
+            hardware_id, employee_id
+        )
 
-    # Store log into LOG_DATA
-    await commons.Store_log(
-        create_log_dict=log_dict
-    )
+    return log_dict, hardware_payload, webapp_payload, new_mode, new_stage
 
-    # Send payload to clients
-    await commons.Notify_clients(
-        hardware_id=hardware_id,
-        hardware_payload=hardware_payload,
-        webapp_payload=webapp_payload
-    )
+    # # Store log into LOG_DATA
+    # await commons.Store_log(
+    #     create_log_dict=log_dict
+    # )
 
-    # Update current mode and stage in database
-    if new_mode is not None:
-        await commons.Update_current_mode_stage(hardware_id=hardware_id, mode=new_mode, stage=new_stage)
+    # # Send payload to clients
+    # await commons.Notify_clients(
+    #     hardware_id=hardware_id,
+    #     hardware_payload=hardware_payload,
+    #     webapp_payload=webapp_payload
+    # )
+
+    # # Update current mode and stage in database
+    # if new_mode is not None:
+    #     await commons.Update_current_mode_stage(hardware_id=hardware_id, mode=new_mode, stage=new_stage)
 
     
 ''' ****************************************************** '''
@@ -294,7 +301,7 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
     # Get information about scanned pallet ID which is being picked up
     pickup_info_results = await commons.Get_pickup_info_various_filters(
         filters_dict={'palletid':scanned_pallet_id, 'pickupstatus':'PICKING'},
-        wanted_fields=('pickupid', 'quantity', 'hardwareid', 'orderlistid', 'orderlistid__ordernumber', 'palletid__itemnumber')
+        wanted_fields=('pickupid', 'quantity', 'hardwareid', 'orderlistid', 'orderlistid__ordernumber', 'palletid__itemnumber', 'palletid__itemnumber__weightperpiece')
     )
 
     if len(pickup_info_results) == 0:
@@ -328,7 +335,7 @@ async def Verify_pickup_amount(scanned_pallet_id, scanned_pallet_weight, hardwar
             }
 
             # Get main-max of expected weight
-            min_weight, max_weight = commons.Range_expected_weight(expected_pallet_weight)
+            min_weight, max_weight = commons.Range_expected_weight(expected_pallet_weight, pickup_info['palletid__itemnumber__weightperpiece'])
 
             # If scanned pallet weight is in expected range
             if min_weight <= scanned_pallet_weight <= max_weight:

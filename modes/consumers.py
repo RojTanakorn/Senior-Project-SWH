@@ -5,6 +5,7 @@ from channels.db import database_sync_to_async
 from asgiref.sync import sync_to_async
 from db.models import HardwareData, UserData
 from .processes import commons, mode_selection_processes
+import json
 
 
 class ModeConsumer(AsyncWebsocketConsumer):
@@ -109,13 +110,16 @@ class ModeConsumer(AsyncWebsocketConsumer):
             
             # Checklist 1:
             if has_ticket:
+                print('\n\n')
+                print('========= Webapp websocket connection =========')
                 print('sw[1/5] has ticket: PASS')
                 cache_result = await sync_to_async(cache.get)(self.scope['client'][0])
                 user_unhashed_ticket = self.scope['url_route']['kwargs']['unhashed_ticket']
+                print('user ticket (unhashed):', user_unhashed_ticket)
 
                 # Checklist 2:
                 if cache_result is not None:
-                    print('sw[2/5] ticket not none: PASS')
+                    print('sw[2/5] ticket is in cache: PASS')
                     user_hashed_ticket = commons.Get_hashed_ticket(user_unhashed_ticket)
                     cache_hashed_ticket = cache_result['hashed_ticket']
 
@@ -193,6 +197,8 @@ class ModeConsumer(AsyncWebsocketConsumer):
             await self.accept()
             await self.close(code=4444)
 
+        print('\n\n')
+
 
     ''' Called when client want to disconnect '''
     async def disconnect(self, close_code):
@@ -261,13 +267,16 @@ class ModeConsumer(AsyncWebsocketConsumer):
     ''' Called when receive data from WebSocket '''
     async def receive(self, text_data):
 
+        payload_json = json.loads(text_data)
+        print(payload_json)
+
         # Process hardware payload in Operate function
         if self.client_type == 'hw':
-            await Operate(self.hardware_id, text_data)
+            await Operate(self.hardware_id, payload_json)
 
         # Process mode selection of webapp in Mode_selection_management function
-        elif self.client_type == 'sw':
-            await Mode_selection_management(self.hardware_id, text_data)
+        if self.client_type == 'sw':
+            await Mode_selection_management(self.hardware_id, payload_json)
 
 
     ''' Called when the mode want to send payload '''
